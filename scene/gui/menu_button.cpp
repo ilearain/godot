@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -54,6 +54,8 @@ void MenuButton::_unhandled_key_input(InputEvent p_event) {
 
 
 		int item = popup->find_item_by_accelerator(code);
+
+
 		if (item>=0 && ! popup->is_item_disabled(item))
 			popup->activate_item(item);
 		/*
@@ -124,7 +126,7 @@ void MenuButton::_set_items(const Array& p_items) {
 
 void MenuButton::_bind_methods() {
 
-	ObjectTypeDB::bind_method(_MD("get_popup"),&MenuButton::get_popup);		
+	ObjectTypeDB::bind_method(_MD("get_popup:PopupMenu"),&MenuButton::get_popup);
 	ObjectTypeDB::bind_method(_MD("_unhandled_key_input"),&MenuButton::_unhandled_key_input);
 	ObjectTypeDB::bind_method(_MD("_set_items"),&MenuButton::_set_items);
 	ObjectTypeDB::bind_method(_MD("_get_items"),&MenuButton::_get_items);

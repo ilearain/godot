@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -91,6 +91,7 @@ class Spatial : public Node {
 		List<Spatial*>::Element *C;
 		
 		bool ignore_notification;
+		bool notify_local_transform;
 
 		bool visible;
 
@@ -134,6 +135,7 @@ public:
 		NOTIFICATION_ENTER_WORLD=41,
 		NOTIFICATION_EXIT_WORLD=42,
 		NOTIFICATION_VISIBILITY_CHANGED=43,
+		NOTIFICATION_LOCAL_TRANSFORM_CHANGED=44,
 	};
 
 	Spatial *get_parent_spatial() const;
@@ -179,6 +181,9 @@ public:
 	void look_at(const Vector3& p_target, const Vector3& p_up_normal);
 	void look_at_from_pos(const Vector3& p_pos,const Vector3& p_target, const Vector3& p_up_normal);
 
+	void set_notify_local_transform(bool p_enable);
+	bool is_local_transform_notification_enabled() const;
+
 	void orthonormalize();
 	void set_identity();
 
@@ -186,6 +191,7 @@ public:
 	void hide();
 	bool is_visible() const;
 	bool is_hidden() const;
+	void set_hidden(bool p_hidden);
 
 #ifdef TOOLS_ENABLED
 	void set_import_transform(const Transform& p_transform)	;

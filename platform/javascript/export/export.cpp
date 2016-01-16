@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -77,11 +77,11 @@ public:
 	virtual int get_device_count() const { return show_run?1:0; };
 	virtual String get_device_name(int p_device) const  { return "Run in Browser"; }
 	virtual String get_device_info(int p_device) const { return "Run exported HTML in the system's default browser."; }
-	virtual Error run(int p_device,bool p_dumb=false);
+	virtual Error run(int p_device,int p_flags=0);
 
 	virtual bool requieres_password(bool p_debug) const { return false; }
 	virtual String get_binary_extension() const { return "html"; }
-	virtual Error export_project(const String& p_path,bool p_debug,bool p_dumb=false);
+	virtual Error export_project(const String& p_path,bool p_debug,int p_flags=0);
 
 	virtual bool can_export(String *r_error=NULL) const;
 
@@ -144,12 +144,16 @@ static void _fix_html(Vector<uint8_t>& html,const String& name,int max_memory) {
 	str.parse_utf8((const char*)html.ptr(),html.size());
 	Vector<String> lines=str.split("\n");
 	for(int i=0;i<lines.size();i++) {
-		if (lines[i].find("godot.js")!=-1) {
-			strnew+="<script type=\"text/javascript\" src=\""+name+"_filesystem.js\"></script>\n";
-			strnew+="<script async type=\"text/javascript\" src=\""+name+".js\"></script>\n";
-		} else if (lines[i].find("var Module")!=-1) {
-			strnew+=lines[i];
-			strnew+="TOTAL_MEMORY:"+itos(max_memory*1024*1024)+",";
+
+		if (lines[i].find("$GODOTTMEM")!=-1) {
+
+			strnew+=lines[i].replace("$GODOTTMEM",itos(max_memory*1024*1024))+"\n";
+		} else if (lines[i].find("$GODOTFS")!=-1) {
+			strnew+=lines[i].replace("$GODOTFS",name+"fs.js")+"\n";
+		} else if (lines[i].find("$GODOTMEM")!=-1) {
+			strnew+=lines[i].replace("$GODOTMEM",name+".mem")+"\n";
+		} else if (lines[i].find("$GODOTJS")!=-1) {
+			strnew+=lines[i].replace("$GODOTJS",name+".js")+"\n";
 		} else {
 			strnew+=lines[i]+"\n";
 		}
@@ -194,24 +198,30 @@ struct JSExportData {
 
 
 
-Error EditorExportPlatformJavaScript::export_project(const String& p_path, bool p_debug, bool p_dumb) {
+Error EditorExportPlatformJavaScript::export_project(const String& p_path, bool p_debug, int p_flags) {
 
 
 	String src_template;
 
 	EditorProgress ep("export","Exporting for javascript",104);
 
-	String template_path = EditorSettings::get_singleton()->get_settings_path()+"/templates/";
+	if (p_debug)
+		src_template=custom_debug_package;
+	else
+		src_template=custom_release_package;
 
-	if (p_debug) {
-
-		src_template=custom_debug_package!=""?custom_debug_package:template_path+"javascript_debug.zip";
-	} else {
-
-		src_template=custom_release_package!=""?custom_release_package:template_path+"javascript_release.zip";
-
+	if (src_template=="") {
+		String err;
+		if (p_debug) {
+			src_template=find_export_template("javascript_debug.zip", &err);
+		} else {
+			src_template=find_export_template("javascript_release.zip", &err);
+		}
+		if (src_template=="") {
+			EditorNode::add_io_error(err);
+			return ERR_FILE_NOT_FOUND;
+		}
 	}
-
 
 	FileAccess *src_f=NULL;
 	zlib_filefunc_def io = zipio_create_io_from_file(&src_f);
@@ -267,15 +277,21 @@ Error EditorExportPlatformJavaScript::export_project(const String& p_path, bool 
 			_fix_html(data,p_path.get_file().basename(),1<<(max_memory+5));
 			file=p_path.get_file();
 		}
-		if (file=="filesystem.js") {
+		if (file=="godotfs.js") {
 
 			_fix_files(data,len);
-			file=p_path.get_file().basename()+"_filesystem.js";
+			file=p_path.get_file().basename()+"fs.js";
 		}
 		if (file=="godot.js") {
 
 			//_fix_godot(data);
 			file=p_path.get_file().basename()+".js";
+		}
+
+		if (file=="godot.mem") {
+
+			//_fix_godot(data);
+			file=p_path.get_file().basename()+".mem";
 		}
 
 		String dst = p_path.get_base_dir().plus_file(file);
@@ -299,10 +315,10 @@ Error EditorExportPlatformJavaScript::export_project(const String& p_path, bool 
 }
 
 
-Error EditorExportPlatformJavaScript::run(int p_device, bool p_dumb) {
+Error EditorExportPlatformJavaScript::run(int p_device, int p_flags) {
 
 	String path = EditorSettings::get_singleton()->get_settings_path()+"/tmp/tmp_export.html";
-	Error err = export_project(path,true,"");
+	Error err = export_project(path,true,p_flags);
 	if (err)
 		return err;
 
@@ -327,9 +343,8 @@ bool EditorExportPlatformJavaScript::can_export(String *r_error) const {
 
 	bool valid=true;
 	String err;
-	String exe_path = EditorSettings::get_singleton()->get_settings_path()+"/templates/";
 
-	if (!FileAccess::exists(exe_path+"javascript_debug.zip") || !FileAccess::exists(exe_path+"javascript_release.zip")) {
+	if (!exists_export_template("javascript_debug.zip") || !exists_export_template("javascript_release.zip")) {
 		valid=false;
 		err+="No export templates found.\nDownload and install export templates.\n";
 	}

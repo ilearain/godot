@@ -204,9 +204,11 @@ public:
 	void set_use_file_access_save_and_swap(bool p_enable);
 
 	void set_icon(const Image& p_icon);
-	Dictionary get_date() const;
-	Dictionary get_time() const;
+	Dictionary get_date(bool utc) const;
+	Dictionary get_time(bool utc) const;
+	Dictionary get_time_zone_info() const;
 	uint64_t get_unix_time() const;
+	uint64_t get_system_time_secs() const;
 
 	int get_static_memory_usage() const;
 	int get_static_memory_peak_usage() const;
@@ -238,10 +240,27 @@ public:
 		SYSTEM_DIR_RINGTONES,
 	};
 
+	enum ScreenOrientation {
+
+		SCREEN_ORIENTATION_LANDSCAPE,
+		SCREEN_ORIENTATION_PORTRAIT,
+		SCREEN_ORIENTATION_REVERSE_LANDSCAPE,
+		SCREEN_ORIENTATION_REVERSE_PORTRAIT,
+		SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+		SCREEN_ORIENTATION_SENSOR_PORTRAIT,
+		SCREEN_ORIENTATION_SENSOR,
+	};
+
 	String get_system_dir(SystemDir p_dir) const;
 
 
 	String get_data_dir() const;
+
+	void alert(const String& p_alert,const String& p_title="ALERT!");
+
+
+	void set_screen_orientation(ScreenOrientation p_orientation);
+	ScreenOrientation get_screen_orientation() const;
 
 	void set_time_scale(float p_scale);
 	float get_time_scale();
@@ -254,6 +273,7 @@ public:
 };
 
 VARIANT_ENUM_CAST(_OS::SystemDir);
+VARIANT_ENUM_CAST(_OS::ScreenOrientation);
 
 
 class _Geometry : public Object {
@@ -309,6 +329,7 @@ public:
 		READ=1,
 		WRITE=2,
 		READ_WRITE=3,
+		WRITE_READ=7,
 	};
 
 	Error open_encrypted(const String& p_path, int p_mode_flags,const Vector<uint8_t>& p_key);
@@ -435,6 +456,12 @@ public:
 	String variant_to_base64(const Variant& p_var);
 	Variant base64_to_variant(const String& p_str);
 
+	String raw_to_base64(const DVector<uint8_t>& p_arr);
+	DVector<uint8_t> base64_to_raw(const String& p_str);
+
+	String utf8_to_base64(const String& p_str);
+	String base64_to_utf8(const String& p_str);
+
 	_Marshalls() {};
 };
 
@@ -482,6 +509,7 @@ protected:
 	Object *target_instance;
 	StringName target_method;
 	Thread *thread;
+	String name;
 	static void _bind_methods();
 	static void _start_func(void *ud);
 public:
@@ -497,6 +525,7 @@ public:
 	String get_id() const;
 	bool is_active() const;
 	Variant wait_to_finish();
+	Error set_name(const String& p_name);
 
 	_Thread();
 	~_Thread();

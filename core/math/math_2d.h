@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -133,7 +133,7 @@ struct Vector2 {
 	bool operator<(const Vector2& p_vec2) const { return (x==p_vec2.x)?(y<p_vec2.y):(x<p_vec2.x); }
 	bool operator<=(const Vector2& p_vec2) const { return (x==p_vec2.x)?(y<=p_vec2.y):(x<=p_vec2.x); }
 
-	real_t atan2() const;
+	real_t angle() const;
 
 	void set_rotation(float p_radians) {
 
@@ -224,6 +224,29 @@ struct Rect2 {
 			return false;
 		
 		return true;
+	}
+
+	inline float distance_to(const Vector2& p_point) const {
+
+		float dist = 1e20;
+
+		if (p_point.x < pos.x) {
+			dist=MIN(dist,pos.x-p_point.x);
+		}
+		if (p_point.y < pos.y) {
+			dist=MIN(dist,pos.y-p_point.y);
+		}
+		if (p_point.x >= (pos.x+size.x) ) {
+			dist=MIN(p_point.x-(pos.x+size.x),dist);
+		}
+		if (p_point.y >= (pos.y+size.y) ) {
+			dist=MIN(p_point.y-(pos.y+size.y),dist);
+		}
+
+		if (dist==1e20)
+			return 0;
+		else
+			return dist;
 	}
 
 	_FORCE_INLINE_ bool intersects_transformed(const Matrix32& p_xform, const Rect2& p_rect) const;

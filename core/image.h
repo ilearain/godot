@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -87,10 +87,12 @@ public:
 		FORMAT_MAX
 	};
 
+	static const char* format_names[FORMAT_MAX];
 	enum Interpolation {
 	
 		INTERPOLATE_NEAREST,
 		INTERPOLATE_BILINEAR,
+		INTERPOLATE_CUBIC,
 		/* INTERPOLATE GAUSS */
 	};
 
@@ -305,6 +307,7 @@ public:
 	};
 
 	AlphaMode detect_alpha() const;
+	bool is_invisible() const;
 
 	void put_indexed_pixel(int p_x, int p_y, uint8_t p_idx,int p_mipmap=0);
 	uint8_t get_indexed_pixel(int p_x, int p_y,int p_mipmap=0) const;
@@ -350,6 +353,8 @@ public:
 	Image get_rect(const Rect2& p_area) const;
 
 	static void set_compress_bc_func(void (*p_compress_func)(Image *));
+	static String get_format_name(Format p_format);
+
 	Image(const uint8_t* p_mem_png, int p_len=-1);
 	Image(const char **p_xpm);
 	~Image();

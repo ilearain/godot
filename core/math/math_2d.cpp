@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -29,7 +29,7 @@
 #include "math_2d.h"
 
 
-real_t Vector2::atan2() const {
+real_t Vector2::angle() const {
 
 	return Math::atan2(x,y);
 }
@@ -165,7 +165,7 @@ Vector2 Vector2::floor() const {
 Vector2 Vector2::rotated(float p_by) const {
 
 	Vector2 v;
-	v.set_rotation(atan2()+p_by);
+	v.set_rotation(angle()+p_by);
 	v*=length();
 	return v;
 }
@@ -187,7 +187,6 @@ Vector2 Vector2::snapped(const Vector2& p_by) const {
 
 Vector2 Vector2::clamped(real_t p_len) const {
 
-	return *this;
 	real_t l = length();
 	Vector2 v = *this;
 	if (l>0 && p_len<l) {
@@ -622,9 +621,39 @@ float Matrix32::basis_determinant() const {
 }
 
 Matrix32 Matrix32::interpolate_with(const Matrix32& p_transform, float p_c) const {
+	
+	//extract parameters
+	Vector2 p1 = get_origin();
+	Vector2 p2 = p_transform.get_origin();
+	
+	real_t r1 = get_rotation();
+	real_t r2 = p_transform.get_rotation();
+	
+	Vector2 s1 = get_scale();
+	Vector2 s2 = p_transform.get_scale();
+	
+	//slerp rotation
+	Vector2 v1(Math::cos(r1), Math::sin(r1));
+	Vector2 v2(Math::cos(r2), Math::sin(r2));
+	
+	real_t dot = v1.dot(v2);
+	
+	dot = (dot < -1.0) ? -1.0 : ((dot > 1.0) ? 1.0 : dot); //clamp dot to [-1,1]
+	
+	Vector2 v;
 
-
-	return Matrix32();
+	if (dot > 0.9995) {
+		v = Vector2::linear_interpolate(v1, v2, p_c).normalized(); //linearly interpolate to avoid numerical precision issues
+	} else {
+		real_t angle = p_c*Math::acos(dot);
+		Vector2 v3 = (v2 - v1*dot).normalized();
+		v = v1*Math::cos(angle) + v3*Math::sin(angle);
+	}
+	
+	//construct matrix
+	Matrix32 res(Math::atan2(v.y, v.x), Vector2::linear_interpolate(p1, p2, p_c));
+	res.scale_basis(Vector2::linear_interpolate(s1, s2, p_c));
+	return res;
 }
 
 Matrix32::operator String() const {

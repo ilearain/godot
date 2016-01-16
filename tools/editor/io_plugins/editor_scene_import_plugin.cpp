@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -162,8 +162,8 @@ class EditorSceneImportDialog : public ConfirmationDialog  {
 	LineEdit *save_path;
 	LineEdit *script_path;
 	Tree *import_options;
-	FileDialog *file_select;
-	FileDialog *script_select;
+	EditorFileDialog *file_select;
+	EditorFileDialog *script_select;
 	EditorDirDialog *save_select;
 	OptionButton *texture_action;
 
@@ -1079,19 +1079,19 @@ EditorSceneImportDialog::EditorSceneImportDialog(EditorNode *p_editor, EditorSce
 	vbc->set_v_size_flags(SIZE_EXPAND_FILL);
 	vbc->add_margin_child("Options:",import_options,true);
 
-	file_select = memnew(FileDialog);
-	file_select->set_access(FileDialog::ACCESS_FILESYSTEM);
+	file_select = memnew(EditorFileDialog);
+	file_select->set_access(EditorFileDialog::ACCESS_FILESYSTEM);
 	add_child(file_select);
 
 
-	file_select->set_mode(FileDialog::MODE_OPEN_FILE);
+	file_select->set_mode(EditorFileDialog::MODE_OPEN_FILE);
 
 	file_select->connect("file_selected", this,"_choose_file");
 
 	save_select = memnew(EditorDirDialog);
 	add_child(save_select);
 
-	//save_select->set_mode(FileDialog::MODE_SAVE_FILE);
+	//save_select->set_mode(EditorFileDialog::MODE_SAVE_FILE);
 	save_select->connect("dir_selected", this,"_choose_save_file");
 
 	get_ok()->connect("pressed", this,"_import");
@@ -1140,7 +1140,7 @@ EditorSceneImportDialog::EditorSceneImportDialog(EditorNode *p_editor, EditorSce
 
 	script_choose->connect("pressed", this,"_browse_script");
 
-	script_select = memnew(FileDialog);
+	script_select = memnew(EditorFileDialog);
 	add_child(script_select);
 	for(int i=0;i<ScriptServer::get_language_count();i++) {
 
@@ -1152,7 +1152,7 @@ EditorSceneImportDialog::EditorSceneImportDialog(EditorNode *p_editor, EditorSce
 	}
 
 
-	script_select->set_mode(FileDialog::MODE_OPEN_FILE);
+	script_select->set_mode(EditorFileDialog::MODE_OPEN_FILE);
 
 	script_select->connect("file_selected", this,"_choose_script");
 
@@ -1814,8 +1814,8 @@ Node* EditorSceneImportPlugin::_fix_node(Node *p_node,Node *p_root,Map<Ref<Mesh>
 
 			for(int i=0;i<portal_points.size()-1;i++) {
 
-				float a = portal_points[i].atan2();
-				float b = portal_points[i+1].atan2();
+				float a = portal_points[i].angle();
+				float b = portal_points[i+1].angle();
 
 				if (a>b) {
 					SWAP( portal_points[i], portal_points[i+1] );

@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -326,10 +326,11 @@ void OSWinrt::finalize() {
 	//if (debugger_connection_console) {
 //		memdelete(debugger_connection_console);
 //}
+	
+	memdelete(sample_manager);
 
 	audio_server->finish();
 	memdelete(audio_server);
-	memdelete(sample_manager);
 
 	memdelete(input);
 
@@ -344,8 +345,7 @@ void OSWinrt::finalize_core() {
 
 	if (mempool_dynamic)
 		memdelete( mempool_dynamic );
-	if (mempool_static)
-		delete mempool_static;
+	delete mempool_static;
 
 }
 
@@ -422,17 +422,27 @@ void OSWinrt::get_fullscreen_mode_list(List<VideoMode> *p_list,int p_screen) con
 	
 }
 
-void OSWinrt::print_error(const char* p_function,const char* p_file,int p_line,const char *p_code,const char*p_rationale,ErrorType p_type) {
+void OSWinrt::print_error(const char* p_function, const char* p_file, int p_line, const char* p_code, const char* p_rationale, ErrorType p_type) {
 
-	if (p_rationale && p_rationale[0]) {
+	const char* err_details;
+	if (p_rationale && p_rationale[0])
+		err_details = p_rationale;
+	else
+		err_details = p_code;
 
-		print("\E[1;31;40mERROR: %s: \E[1;37;40m%s\n",p_function,p_rationale);
-		print("\E[0;31;40m   At: %s:%i.\E[0;0;37m\n",p_file,p_line);
-
-	} else {
-		print("\E[1;31;40mERROR: %s: \E[1;37;40m%s\n",p_function,p_code);
-		print("\E[0;31;40m   At: %s:%i.\E[0;0;37m\n",p_file,p_line);
-
+	switch(p_type) {
+		case ERR_ERROR:
+			print("ERROR: %s: %s\n", p_function, err_details);
+			print("   At: %s:%i\n", p_file, p_line);
+			break;
+		case ERR_WARNING:
+			print("WARNING: %s: %s\n", p_function, err_details);
+			print("     At: %s:%i\n", p_file, p_line);
+			break;
+		case ERR_SCRIPT:
+			print("SCRIPT ERROR: %s: %s\n", p_function, err_details);
+			print("          At: %s:%i\n", p_file, p_line);
+			break;
 	}
 }
 
@@ -442,10 +452,14 @@ String OSWinrt::get_name() {
 	return "WinRT";
 }
 
-OS::Date OSWinrt::get_date() const {
+OS::Date OSWinrt::get_date(bool utc) const {
 
 	SYSTEMTIME systemtime;
-	GetSystemTime(&systemtime);
+	if (utc)
+		GetSystemTime(&systemtime);
+	else
+		GetLocalTime(&systemtime);
+
 	Date date;
 	date.day=systemtime.wDay;
 	date.month=Month(systemtime.wMonth);
@@ -454,10 +468,13 @@ OS::Date OSWinrt::get_date() const {
 	date.dst=false;
 	return date;
 }
-OS::Time OSWinrt::get_time() const {
+OS::Time OSWinrt::get_time(bool utc) const {
 
 	SYSTEMTIME systemtime;
-	GetSystemTime(&systemtime);
+	if (utc)
+		GetSystemTime(&systemtime);
+	else
+		GetLocalTime(&systemtime);
 
 	Time time;
 	time.hour=systemtime.wHour;
@@ -466,11 +483,28 @@ OS::Time OSWinrt::get_time() const {
 	return time;
 }
 
+OS::TimeZoneInfo OS_Windows::get_time_zone_info() const {
+	TIME_ZONE_INFORMATION info;
+	bool daylight = false;
+	if (GetTimeZoneInformation(&info) == TIME_ZONE_ID_DAYLIGHT)
+		daylight = true;
+
+	TimeZoneInfo ret;
+	if (daylight) {
+		ret.name = info.DaylightName;
+	} else {
+		ret.name = info.StandardName;
+	}
+
+	ret.bias = info.Bias;
+	return ret;
+}
+
 uint64_t OSWinrt::get_unix_time() const {
 
 	FILETIME ft;
 	SYSTEMTIME st;
-	GetSystemTime(&st);
+	GetSystemTime(&systemtime);
 	SystemTimeToFileTime(&st, &ft);
 
 	SYSTEMTIME ep;

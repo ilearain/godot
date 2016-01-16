@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,9 +32,10 @@
 #include "key_mapping_x11.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "print_string.h"
 #include "servers/physics/physics_server_sw.h"
-
+#include "errno.h"
 
 #include "X11/Xutil.h"
 
@@ -57,10 +58,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#ifdef __linux__
-#include <linux/joystick.h>
-#endif
-
 //stupid linux.h
 #ifdef KEY_TAB
 #undef KEY_TAB
@@ -73,20 +70,18 @@
 #undef CursorShape
 
 int OS_X11::get_video_driver_count() const {
-
 	return 1;
 }
-const char * OS_X11::get_video_driver_name(int p_driver) const {
 
+const char * OS_X11::get_video_driver_name(int p_driver) const {
 	return "GLES2";
 }
-OS::VideoMode OS_X11::get_default_video_mode() const {
 
-	return OS::VideoMode(800,600,false);
+OS::VideoMode OS_X11::get_default_video_mode() const {
+	return OS::VideoMode(1280,720,false);
 }
 
 int OS_X11::get_audio_driver_count() const {
-
     return AudioDriverManagerSW::get_driver_count();
 }
 
@@ -100,8 +95,6 @@ const char *OS_X11::get_audio_driver_name(int p_driver) const {
 void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audio_driver) {
 
 	last_button_state=0;
-	dpad_last[0]=0;
-	dpad_last[1]=0;
 
 	xmbstring=NULL;
 	event_id=0;
@@ -153,6 +146,7 @@ void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 			
 			XFree (xim_styles);
 		}
+		XFree( imvalret );
 	}
 
 	/*
@@ -256,7 +250,6 @@ void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 	}
 #endif
 
-
 	AudioDriverManagerSW::get_driver(p_audio_driver)->set_singleton();
 
 	audio_driver_index=p_audio_driver;
@@ -267,6 +260,7 @@ void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 		for(int i=0;i<AudioDriverManagerSW::get_driver_count();i++) {
 			if (i==p_audio_driver)
 				continue;
+			AudioDriverManagerSW::get_driver(i)->set_singleton();
 			if (AudioDriverManagerSW::get_driver(i)->init()==OK) {
 				success=true;
 				print_line("Audio Driver Failed: "+String(AudioDriverManagerSW::get_driver(p_audio_driver)->get_name()));
@@ -350,6 +344,7 @@ void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 	for(int i=0;i<CURSOR_MAX;i++) {
 
 		cursors[i]=None;
+		img[i]=NULL;
 	}
 
 	current_cursor=CURSOR_ARROW;
@@ -378,16 +373,15 @@ void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 				"question_arrow"
 			};
 
-			XcursorImage *img = XcursorLibraryLoadImage(cursor_file[i],cursor_theme,cursor_size);
-			if (img) {
-				cursors[i]=XcursorImageLoadCursor(x11_display,img);
+			img[i] = XcursorLibraryLoadImage(cursor_file[i],cursor_theme,cursor_size);
+			if (img[i]) {
+				cursors[i]=XcursorImageLoadCursor(x11_display,img[i]);
 				//print_line("found cursor: "+String(cursor_file[i])+" id "+itos(cursors[i]));
 			} else {
 				if (OS::is_stdout_verbose())
 					print_line("failed cursor: "+String(cursor_file[i]));
 			}
 		}
-
 	}
 
 
@@ -398,9 +392,9 @@ void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 		 XColor col;
 		 Cursor cursor;
 
-		 cursormask = XCreatePixmap(x11_display, RootWindow(x11_display,DefaultScreen(x11_display)), 1, 1, 1);
-		 xgc.function = GXclear;
-		 gc = XCreateGC(x11_display, cursormask, GCFunction, &xgc);
+		cursormask = XCreatePixmap(x11_display, RootWindow(x11_display,DefaultScreen(x11_display)), 1, 1, 1);
+		xgc.function = GXclear;
+		gc = XCreateGC(x11_display, cursormask, GCFunction, &xgc);
 		XFillRectangle(x11_display, cursormask, gc, 0, 0, 1, 1);
 		col.pixel = 0;
 		col.red = 0;
@@ -432,17 +426,12 @@ void OS_X11::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 	physics_2d_server->init();
 
 	input = memnew( InputDefault );
-
-	probe_joystick();
-
+#ifdef JOYDEV_ENABLED
+	joystick = memnew( joystick_linux(input));
+#endif
 	_ensure_data_dir();
-
-	net_wm_icon = XInternAtom(x11_display, "_NET_WM_ICON", False);
-
-
-	//printf("got map notify\n");
-		
 }
+
 void OS_X11::finalize() {
 
 	if(main_loop)
@@ -458,9 +447,15 @@ void OS_X11::finalize() {
 //		memdelete(debugger_connection_console);
 //}
 
+#ifdef JOYDEV_ENABLED
+	memdelete(joystick);
+#endif
+	memdelete(input);
+
+	memdelete(sample_manager);
+
 	audio_server->finish();
 	memdelete(audio_server);
-	memdelete(sample_manager);
 
 	visual_server->finish();
 	memdelete(visual_server);
@@ -472,16 +467,26 @@ void OS_X11::finalize() {
 	physics_2d_server->finish();
 	memdelete(physics_2d_server);
 
-	memdelete(input);
+	XUnmapWindow( x11_display, x11_window );
+	XDestroyWindow( x11_display, x11_window );
 
 #if defined(OPENGL_ENABLED) || defined(LEGACYGL_ENABLED)
 	memdelete(context_gl);
 #endif
-	
+	for(int i=0;i<CURSOR_MAX;i++) {
+		if( cursors[i] != None )
+			XFreeCursor( x11_display, cursors[i] );		
+		if( img[i] != NULL )
+			XcursorImageDestroy( img[i] );
+	};	
+
+	XDestroyIC( xic );
+	XCloseIM( xim );
 
 	XCloseDisplay(x11_display);
 	if (xmbstring)
 		memfree(xmbstring);
+
 		
 	args.clear();
 }
@@ -503,6 +508,23 @@ void OS_X11::set_mouse_mode(MouseMode p_mode) {
 	mouse_mode=p_mode;
 
 	if (mouse_mode==MOUSE_MODE_CAPTURED) {
+
+		while(true) {
+			//flush pending motion events
+
+			if (XPending(x11_display) > 0) {
+				XEvent event;
+				XPeekEvent(x11_display, &event);
+				if (event.type==MotionNotify) {
+					XNextEvent(x11_display,&event);
+				} else {
+					break;
+				}
+			} else {
+				break;
+			}
+		}
+
 		if (XGrabPointer(x11_display, x11_window, True,
 				    ButtonPressMask | ButtonReleaseMask |
 				    PointerMotionMask, GrabModeAsync, GrabModeAsync,
@@ -517,6 +539,8 @@ void OS_X11::set_mouse_mode(MouseMode p_mode) {
 			      0,0,0,0, (int)center.x, (int)center.y);
 
 		input->set_mouse_pos(center);
+	} else {
+		do_mouse_warp=false;
 	}
 }
 
@@ -538,37 +562,29 @@ void OS_X11::warp_mouse_pos(const Point2& p_to) {
 }
 
 OS::MouseMode OS_X11::get_mouse_mode() const {
-
 	return mouse_mode;
 }
-
-
 
 int OS_X11::get_mouse_button_state() const {
 	return last_button_state;
 }
 
 Point2 OS_X11::get_mouse_pos() const {
-
 	return last_mouse_pos;
 }
 
 void OS_X11::set_window_title(const String& p_title) {
-
 	XStoreName(x11_display,x11_window,p_title.utf8().get_data());
 }
 
 void OS_X11::set_video_mode(const VideoMode& p_video_mode,int p_screen) {
-
-
 }
-OS::VideoMode OS_X11::get_video_mode(int p_screen) const {
 
+OS::VideoMode OS_X11::get_video_mode(int p_screen) const {
 	return current_videomode;
 }
+
 void OS_X11::get_fullscreen_mode_list(List<VideoMode> *p_list,int p_screen) const {
-
-
 }
 
 //#ifdef NEW_WM_API
@@ -603,6 +619,7 @@ void OS_X11::set_wm_fullscreen(bool p_enabled) {
 	xev.xclient.data.l[2] = 0;
 
 	XSendEvent(x11_display, DefaultRootWindow(x11_display), False, SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+
 }
 
 int OS_X11::get_screen_count() const {
@@ -654,14 +671,20 @@ Point2 OS_X11::get_screen_position(int p_screen) const {
 	// Using Xinerama Extension
 	int event_base, error_base;
 	const Bool ext_okay = XineramaQueryExtension(x11_display, &event_base, &error_base);
-	if( !ext_okay ) return Point2i(0,0);
+	if( !ext_okay ) {
+		return Point2i(0,0);
+	}
 	
 	int count;
 	XineramaScreenInfo* xsi = XineramaQueryScreens(x11_display, &count);
-	if( p_screen >= count ) return Point2i(0,0);
+	if( p_screen >= count ) {
+		return Point2i(0,0);
+	}
 	
 	Point2i position = Point2i(xsi[p_screen].x_org, xsi[p_screen].y_org);
+
 	XFree(xsi);
+
 	return position;
 }
 
@@ -679,7 +702,6 @@ Size2 OS_X11::get_screen_size(int p_screen) const {
 	XFree(xsi);
 	return size;
 }
-	
 
 Point2 OS_X11::get_window_position() const {
 	int x,y;
@@ -695,6 +717,7 @@ Point2 OS_X11::get_window_position() const {
 void OS_X11::set_window_position(const Point2& p_position) {
 	// Using EWMH -- Extended Window Manager Hints
 	// to get the size of the decoration 
+#if 0
 	Atom property = XInternAtom(x11_display,"_NET_FRAME_EXTENTS", True);
 	Atom type;
 	int format;
@@ -737,6 +760,9 @@ void OS_X11::set_window_position(const Point2& p_position) {
 	top -= screen_position.y;
 
 	XMoveWindow(x11_display,x11_window,p_position.x - left,p_position.y - top);
+#else
+	XMoveWindow(x11_display,x11_window,p_position.x,p_position.y);
+#endif
 }
 
 Size2 OS_X11::get_window_size() const {
@@ -752,8 +778,6 @@ void OS_X11::set_window_size(const Size2 p_size) {
 void OS_X11::set_window_fullscreen(bool p_enabled) {
 	set_wm_fullscreen(p_enabled);
 	current_videomode.fullscreen = p_enabled;
-
-	visual_server->init();
 }
 
 bool OS_X11::is_window_fullscreen() const {
@@ -859,6 +883,20 @@ void OS_X11::set_window_maximized(bool p_enabled) {
 	xev.xclient.data.l[2] = wm_max_vert;
 
 	XSendEvent(x11_display, DefaultRootWindow(x11_display), False, SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+/* sorry this does not fix it, fails on multi monitor
+	XWindowAttributes xwa;
+	XGetWindowAttributes(x11_display,DefaultRootWindow(x11_display),&xwa);
+	current_videomode.width = xwa.width;
+	current_videomode.height = xwa.height;
+//*/
+
+//	current_videomode.width = wm_max_horz;
+//	current_videomode.height = wm_max_vert;
+
+	//Size2 ss = get_screen_size(get_current_screen());
+	//current_videomode.width=ss.width;
+	//current_videomode.height=ss.height;
+
 
 	maximized = p_enabled;
 }
@@ -956,7 +994,6 @@ unsigned int OS_X11::get_mouse_button_state(unsigned int p_x11_state) {
 }
 	
 void OS_X11::handle_key_event(XKeyEvent *p_event, bool p_echo) {
-
 			
 	// X11 functions don't know what const is
 	XKeyEvent *xkeyevent = p_event;
@@ -1122,15 +1159,13 @@ void OS_X11::handle_key_event(XKeyEvent *p_event, bool p_echo) {
 
 	//printf("key: %x\n",event.key.scancode);
 	input->parse_input_event( event);
-
-	
 }
 
 void OS_X11::process_xevents() {
 
 	//printf("checking events %i\n", XPending(x11_display));
 
-	bool do_mouse_warp=false;
+	do_mouse_warp=false;
 
 	while (XPending(x11_display) > 0) {
 		XEvent event;
@@ -1149,13 +1184,26 @@ void OS_X11::process_xevents() {
 			XVisibilityEvent * visibility = (XVisibilityEvent *)&event;
 			minimized = (visibility->state == VisibilityFullyObscured);
 		} break;
+		case LeaveNotify: {
 
-		case FocusIn: 
+			if (main_loop && mouse_mode!=MOUSE_MODE_CAPTURED)
+				main_loop->notification(MainLoop::NOTIFICATION_WM_MOUSE_EXIT);
+			if (input)
+				input->set_mouse_in_window(false);
+
+		} break;
+		case EnterNotify: {
+
+			if (main_loop && mouse_mode!=MOUSE_MODE_CAPTURED)
+				main_loop->notification(MainLoop::NOTIFICATION_WM_MOUSE_ENTER);
+			if (input)
+				input->set_mouse_in_window(true);
+		} break;
+		case FocusIn:
 			minimized = false;
 #ifdef NEW_WM_API
 			if(current_videomode.fullscreen) {
 				set_wm_fullscreen(true);
-				visual_server->init();
 			}
 #endif
 			main_loop->notification(MainLoop::NOTIFICATION_WM_FOCUS_IN);
@@ -1172,7 +1220,6 @@ void OS_X11::process_xevents() {
 			if(current_videomode.fullscreen) {
 				set_wm_fullscreen(false);
 				set_window_minimized(true);
-				visual_server->init();
 			}
 #endif
 			main_loop->notification(MainLoop::NOTIFICATION_WM_FOCUS_OUT);
@@ -1243,8 +1290,38 @@ void OS_X11::process_xevents() {
 			
 		} break;	
 		case MotionNotify: {
-						
+
+			// FUCK YOU X11 API YOU SERIOUSLY GROSS ME OUT
+			// YOU ARE AS GROSS AS LOOKING AT A PUTRID PILE
+			// OF POOP STICKING OUT OF A CLOGGED TOILET
+			// HOW THE FUCK I AM SUPPOSED TO KNOW WHICH ONE
+			// OF THE MOTION NOTIFY EVENTS IS THE ONE GENERATED
+			// BY WARPING THE MOUSE POINTER?
+			// YOU ARE FORCING ME TO FILTER ONE BY ONE TO FIND IT
+			// PLEASE DO ME A FAVOR AND DIE DROWNED IN A FECAL
+			// MOUNTAIN BECAUSE THAT'S WHERE YOU BELONG.
+
 			
+			while(true) {
+				if (mouse_mode==MOUSE_MODE_CAPTURED && event.xmotion.x==current_videomode.width/2 && event.xmotion.y==current_videomode.height/2) {
+					//this is likely the warp event since it was warped here
+					center=Vector2(event.xmotion.x,event.xmotion.y);
+					break;
+				}
+
+				if (XPending(x11_display) > 0) {
+					XEvent tevent;
+					XPeekEvent(x11_display, &tevent);
+					if (tevent.type==MotionNotify) {
+						XNextEvent(x11_display,&event);
+					} else {
+						break;
+					}
+				} else {
+					break;
+				}
+			}
+
 			last_timestamp=event.xmotion.time;
 		
 			// Motion is also simple.
@@ -1583,192 +1660,10 @@ String OS_X11::get_system_dir(SystemDir p_dir) const {
 	return pipe.strip_edges();
 }
 
-
-void OS_X11::close_joystick(int p_id) {
-
-	if (p_id == -1) {
-		for (int i=0; i<JOYSTICKS_MAX; i++) {
-
-			close_joystick(i);
-		};
-		return;
-	};
-
-
-	if (joysticks[p_id].fd != -1) {
-		close(joysticks[p_id].fd);
-		joysticks[p_id].fd = -1;
-	};
-	input->joy_connection_changed(p_id, false, "");
-};
-
-void OS_X11::probe_joystick(int p_id) {
-	#ifndef __FreeBSD__
-
-	if (p_id == -1) {
-
-		for (int i=0; i<JOYSTICKS_MAX; i++) {
-
-			probe_joystick(i);
-		};
-		return;
-	};
-
-	if (joysticks[p_id].fd != -1)
-		close_joystick(p_id);
-
-	const char *joy_names[] = {
-		"/dev/input/js%d",
-		"/dev/js%d",
-		NULL
-	};
-
-	int i=0;
-	while(joy_names[i]) {
-
-		char fname[64];
-		sprintf(fname, joy_names[i], p_id);
-		int fd = open(fname, O_RDONLY|O_NONBLOCK);
-		if (fd != -1) {
-
-			//fcntl( fd, F_SETFL, O_NONBLOCK );
-			joysticks[p_id] = Joystick(); // this will reset the axis array
-			joysticks[p_id].fd = fd;
-
-			String name;
-			char namebuf[255] = {0};
-			if (ioctl(fd, JSIOCGNAME(sizeof(namebuf)), namebuf) >= 0) {
-				name = namebuf;
-			} else {
-				name = "error";
-			};
-
-			input->joy_connection_changed(p_id, true, name);
-			break; // don't try the next name
-		};
-
-		++i;
-	};
-	#endif
-};
-
 void OS_X11::move_window_to_foreground() {
 
 	XRaiseWindow(x11_display,x11_window);
 }
-
-void OS_X11::process_joysticks() {
-	#ifndef __FreeBSD__
-	int bytes;
-	js_event events[32];
-	InputEvent ievent;
-	for (int i=0; i<JOYSTICKS_MAX; i++) {
-
-		if (joysticks[i].fd == -1) {
-			probe_joystick(i);
-			if (joysticks[i].fd == -1)
-				continue;
-		};
-		ievent.device = i;
-
-		while ( (bytes = read(joysticks[i].fd, &events, sizeof(events))) > 0) {
-
-			int ev_count = bytes / sizeof(js_event);
-			for (int j=0; j<ev_count; j++) {
-
-				js_event& event = events[j];
-
-				//printf("got event on joystick %i, %i, %i, %i, %i\n", i, joysticks[i].fd, event.type, event.number, event.value);
-				if (event.type & JS_EVENT_INIT)
-					continue;
-
-				switch (event.type & ~JS_EVENT_INIT) {
-
-				case JS_EVENT_AXIS:
-
-					//if (joysticks[i].last_axis[event.number] != event.value) {
-
-						/*
-						if (event.number==5 || event.number==6) {
-
-							int axis=event.number-5;
-							int val = event.value;
-							if (val<0)
-								val=-1;
-							if (val>0)
-								val=+1;
-
-							InputEvent ev;
-							ev.type = InputEvent::JOYSTICK_BUTTON;
-							ev.ID = ++event_id;
-
-
-							if (val!=dpad_last[axis]) {
-
-								int prev_val = dpad_last[axis];
-								if (prev_val!=0) {
-
-									ev.joy_button.pressed=false;
-									ev.joy_button.pressure=0.0;
-									if (event.number==5)
-										ev.joy_button.button_index=JOY_DPAD_LEFT+(prev_val+1)/2;
-									if (event.number==6)
-										ev.joy_button.button_index=JOY_DPAD_UP+(prev_val+1)/2;
-
-									input->parse_input_event( ev );
-								}
-							}
-
-							if (val!=0) {
-
-								ev.joy_button.pressed=true;
-								ev.joy_button.pressure=1.0;
-								if (event.number==5)
-									ev.joy_button.button_index=JOY_DPAD_LEFT+(val+1)/2;
-								if (event.number==6)
-									ev.joy_button.button_index=JOY_DPAD_UP+(val+1)/2;
-
-								input->parse_input_event( ev );
-							}
-
-
-							dpad_last[axis]=val;
-
-						}
-						*/
-						//print_line("ev: "+itos(event.number)+" val: "+ rtos((float)event.value / (float)MAX_JOY_AXIS));
-						//if (event.number >= JOY_AXIS_MAX)
-						//	break;
-						//ERR_FAIL_COND(event.number >= JOY_AXIS_MAX);
-						ievent.type = InputEvent::JOYSTICK_MOTION;
-						ievent.ID = ++event_id;
-						ievent.joy_motion.axis = event.number; //_pc_joystick_get_native_axis(event.number);
-						ievent.joy_motion.axis_value = (float)event.value / (float)MAX_JOY_AXIS;
-						if (event.number < JOY_AXIS_MAX)
-							joysticks[i].last_axis[event.number] = event.value;
-						input->parse_input_event( ievent );
-					//};
-					break;
-
-				case JS_EVENT_BUTTON:
-
-
-					ievent.type = InputEvent::JOYSTICK_BUTTON;
-					ievent.ID = ++event_id;
-					ievent.joy_button.button_index = event.number; // _pc_joystick_get_native_button(event.number);
-					ievent.joy_button.pressed = event.value;
-					input->parse_input_event( ievent );
-					break;
-				};
-			};
-		};
-		if (bytes == 0 || (bytes < 0 && errno != EAGAIN)) {
-			close_joystick(i);
-		};
-	};
-	#endif
-};
-
 
 void OS_X11::set_cursor_shape(CursorShape p_shape) {
 
@@ -1782,7 +1677,6 @@ void OS_X11::set_cursor_shape(CursorShape p_shape) {
 		else if (cursors[CURSOR_ARROW]!=None)
 			XDefineCursor(x11_display,x11_window,cursors[CURSOR_ARROW]);
 	}
-
 
 	current_cursor=p_shape;
 }
@@ -1804,8 +1698,20 @@ void OS_X11::swap_buffers() {
 	context_gl->swap_buffers();
 }
 
+void OS_X11::alert(const String& p_alert,const String& p_title) {
+
+	List<String> args;
+	args.push_back("-center");
+	args.push_back("-title");
+	args.push_back(p_title);
+	args.push_back(p_alert);
+
+	execute("/usr/bin/xmessage",args,true);
+}
 
 void OS_X11::set_icon(const Image& p_icon) {
+	Atom net_wm_icon = XInternAtom(x11_display, "_NET_WM_ICON", False);
+
 	if (!p_icon.empty()) {
 		Image img=p_icon;
 		img.convert(Image::FORMAT_RGBA);
@@ -1838,7 +1744,6 @@ void OS_X11::set_icon(const Image& p_icon) {
 	    XDeleteProperty(x11_display, x11_window, net_wm_icon);
 	}
 	XFlush(x11_display);
-
 }
 
 
@@ -1859,12 +1764,22 @@ void OS_X11::run() {
 	while (!force_quit) {
 	
 		process_xevents(); // get rid of pending events
-		process_joysticks();
+#ifdef JOYDEV_ENABLED
+		event_id = joystick->process_joysticks(event_id);
+#endif
 		if (Main::iteration()==true)
 			break;
 	};
 	
 	main_loop->finish();
+}
+
+bool OS_X11::is_joy_known(int p_device) {
+	return input->is_joy_mapped(p_device);
+}
+
+String OS_X11::get_joy_guid(int p_device) const {
+	return input->get_joy_guid_remapped(p_device);
 }
 
 OS_X11::OS_X11() {

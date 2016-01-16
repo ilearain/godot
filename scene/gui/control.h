@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -107,7 +107,10 @@ private:
 
 		float margin[4];
 		AnchorType anchor[4];
-		FocusMode focus_mode;		
+		FocusMode focus_mode;
+
+		float rotation;
+		Vector2 scale;
 
 		bool pending_resize;
 
@@ -211,6 +214,8 @@ private:
 	void _size_changed();
 	String _get_tooltip() const;
 
+	void _set_rotation_deg(float p_rot);
+	float _get_rotation_deg() const;
 
 protected:	
 	bool window_has_modal_stack() const;
@@ -265,6 +270,8 @@ public:
 	void set_custom_minimum_size(const Size2& p_custom);
 	Size2 get_custom_minimum_size() const;
 
+	bool is_window_modal_on_top() const;
+
 	bool is_window() const;
 	Control *get_window() const;
 	Control *get_parent_control() const;
@@ -299,6 +306,13 @@ public:
 	Rect2 get_rect() const;
 	Rect2 get_global_rect() const;
 	Rect2 get_window_rect() const; ///< use with care, as it blocks waiting for the visual server
+
+	void set_rotation(float p_rotation);
+	float get_rotation() const;
+
+	void set_scale(const Vector2& p_scale);
+	Vector2 get_scale() const;
+
 	
 	void set_area_as_parent_rect(int p_margin=0);
 	
@@ -381,6 +395,8 @@ public:
 	void grab_click_focus();
 
 	void warp_mouse(const Point2& p_to_pos);
+
+	virtual bool is_text_field() const;
 
 	Control();	
 	~Control();

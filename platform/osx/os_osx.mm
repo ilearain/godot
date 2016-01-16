@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -47,6 +47,7 @@
 #include "servers/visual/visual_server_wrap_mt.h"
 #include "main/main.h"
 #include "os/keyboard.h"
+#include "dir_access_osx.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -512,12 +513,26 @@ static int button_mask=0;
 
 - (void)mouseExited:(NSEvent *)event
 {
+	if (!OS_OSX::singleton)
+		return;
+
+	if (OS_OSX::singleton->main_loop && OS_OSX::singleton->mouse_mode!=OS::MOUSE_MODE_CAPTURED)
+		OS_OSX::singleton->main_loop->notification(MainLoop::NOTIFICATION_WM_MOUSE_EXIT);
+	if (OS_OSX::singleton->input)
+		OS_OSX::singleton->input->set_mouse_in_window(false);
    // _glfwInputCursorEnter(window, GL_FALSE);
 }
 
 - (void)mouseEntered:(NSEvent *)event
 {
   //  _glfwInputCursorEnter(window, GL_TRUE);
+	if (!OS_OSX::singleton)
+		return;
+	if (OS_OSX::singleton->main_loop && OS_OSX::singleton->mouse_mode!=OS::MOUSE_MODE_CAPTURED)
+		OS_OSX::singleton->main_loop->notification(MainLoop::NOTIFICATION_WM_MOUSE_ENTER);
+	if (OS_OSX::singleton->input)
+		OS_OSX::singleton->input->set_mouse_in_window(true);
+
 }
 
 - (void)viewDidChangeBackingProperties
@@ -835,6 +850,11 @@ OS::VideoMode OS_OSX::get_default_video_mode() const {
 void OS_OSX::initialize_core() {
 
 	OS_Unix::initialize_core();
+
+	DirAccess::make_default<DirAccessOSX>(DirAccess::ACCESS_RESOURCES);
+	DirAccess::make_default<DirAccessOSX>(DirAccess::ACCESS_USERDATA);
+	DirAccess::make_default<DirAccessOSX>(DirAccess::ACCESS_FILESYSTEM);
+
 	SemaphoreOSX::make_default();
 
 }
@@ -1036,6 +1056,33 @@ void OS_OSX::initialize(const VideoMode& p_desired,int p_video_driver,int p_audi
 void OS_OSX::finalize() {
 
 	CFNotificationCenterRemoveObserver(CFNotificationCenterGetDistributedCenter(), NULL, kTISNotifySelectedKeyboardInputSourceChanged, NULL);
+	delete_main_loop();
+
+	spatial_sound_server->finish();
+	memdelete(spatial_sound_server);
+	spatial_sound_2d_server->finish();
+	memdelete(spatial_sound_2d_server);
+
+
+	memdelete(input);
+
+	memdelete(sample_manager);
+
+	audio_server->finish();
+	memdelete(audio_server);
+
+	visual_server->finish();
+	memdelete(visual_server);
+	memdelete(rasterizer);
+
+	physics_server->finish();
+	memdelete(physics_server);
+
+	physics_2d_server->finish();
+	memdelete(physics_2d_server);
+
+	screens.clear();
+
 
 }
 
@@ -1048,6 +1095,8 @@ void OS_OSX::set_main_loop( MainLoop * p_main_loop ) {
 
 void OS_OSX::delete_main_loop() {
 
+	if (!main_loop)
+		return;
 	memdelete(main_loop);
 	main_loop=NULL;
 }
@@ -1113,7 +1162,9 @@ void OS_OSX::warp_mouse_pos(const Point2& p_to) {
 	NSPoint localPoint = { p_to.x, p_to.y };
 
 	NSPoint pointInWindow = [window_view convertPoint:localPoint toView:nil];
-	NSPoint pointOnScreen = [[window_view window] convertRectToScreen:(NSRect){.origin=pointInWindow}].origin;
+	NSRect pointInWindowRect;
+	pointInWindowRect.origin = pointInWindow;
+	NSPoint pointOnScreen = [[window_view window] convertRectToScreen:pointInWindowRect].origin;
 
 	//point in scren coords
 	CGPoint lMouseWarpPos = { pointOnScreen.x, pointOnScreen.y};
@@ -1238,6 +1289,11 @@ Error OS_OSX::shell_open(String p_uri) {
 	return OK;
 }
 
+String OS_OSX::get_locale() const {
+  NSString* preferredLang = [[NSLocale preferredLanguages] objectAtIndex:0];
+	return [preferredLang UTF8String];
+}
+
 void OS_OSX::swap_buffers() {
 
 	[context flushBuffer];
@@ -1277,7 +1333,7 @@ void OS_OSX::set_current_screen(int p_screen) {
 	current_screen = p_screen;
 };
 
-Point2 OS_OSX::get_screen_position(int p_screen) {
+Point2 OS_OSX::get_screen_position(int p_screen) const {
 
 	ERR_FAIL_INDEX_V(p_screen, screens.size(), Point2());
 	return screens[p_screen].pos;

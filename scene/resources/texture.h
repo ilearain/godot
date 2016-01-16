@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -56,6 +56,7 @@ public:
 		FLAG_CONVERT_TO_LINEAR=VisualServer::TEXTURE_FLAG_CONVERT_TO_LINEAR,
 		FLAG_VIDEO_SURFACE=VisualServer::TEXTURE_FLAG_VIDEO_SURFACE,
 		FLAGS_DEFAULT=FLAG_MIPMAPS|FLAG_REPEAT|FLAG_FILTER,
+		FLAG_MIRRORED_REPEAT=VisualServer::TEXTURE_FLAG_MIRRORED_REPEAT
 	};
 
 
@@ -147,11 +148,13 @@ public:
 	void fix_alpha_edges();
 	void premultiply_alpha();
 	void normal_to_xy();
+	void shrink_x2_and_keep_size();
 
 
 	void set_size_override(const Size2& p_size);
 
-	
+	virtual void set_path(const String& p_path,bool p_take_over=false);
+
 	ImageTexture();
 	~ImageTexture();
 
@@ -318,6 +321,8 @@ public:
 
 	void set_lossy_storage_quality(float p_lossy_storage_quality);
 	float get_lossy_storage_quality() const;
+
+	virtual void set_path(const String& p_path,bool p_take_over=false);
 
 	CubeMap();
 	~CubeMap();

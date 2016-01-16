@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -76,10 +76,10 @@ static String _escape_string(const String& p_str) {
 void DocDump::dump(const String& p_file) {
 
 
-	List<String> class_list;
+	List<StringName> class_list;
 	ObjectTypeDB::get_type_list(&class_list);
 
-	class_list.sort();
+	class_list.sort_custom<StringName::AlphCompare>();
 
 
 	FileAccess *f = FileAccess::open(p_file,FileAccess::WRITE);

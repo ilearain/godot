@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -190,8 +190,11 @@ public:
 	virtual bool texture_has_alpha(RID p_texture) const=0;
 	virtual void texture_set_size_override(RID p_texture,int p_width, int p_height)=0;
 
-
 	virtual void texture_set_reload_hook(RID p_texture,ObjectID p_owner,const StringName& p_function) const=0;
+
+	virtual void texture_set_path(RID p_texture,const String& p_path)=0;
+	virtual String texture_get_path(RID p_texture) const=0;
+	virtual void texture_debug_usage(List<VS::TextureInfo> *r_info)=0;
 
 	/* SHADER API */
 
@@ -502,7 +505,7 @@ public:
 	virtual void begin_scene(RID p_viewport_data,RID p_env,VS::ScenarioDebugMode p_debug)=0;
 	virtual void begin_shadow_map( RID p_light_instance, int p_shadow_pass )=0;
 
-	virtual void set_camera(const Transform& p_world,const CameraMatrix& p_projection)=0;
+	virtual void set_camera(const Transform& p_world,const CameraMatrix& p_projection,bool p_ortho_hint)=0;
 	
 	virtual void add_light( RID p_light_instance )=0; ///< all "add_light" calls happen before add_geometry calls
 	
@@ -592,6 +595,7 @@ public:
 		RID shadow_buffer;
 		int shadow_buffer_size;
 		float shadow_esm_mult;
+		Color shadow_color;
 
 
 		void *texture_cache; // implementation dependent
@@ -606,10 +610,12 @@ public:
 		CanvasLight *shadows_next_ptr;
 		CanvasLight *filter_next_ptr;
 		CanvasLight *next_ptr;
+		CanvasLight *mask_next_ptr;
 
 		CanvasLight() {
 			enabled=true;			
 			color=Color(1,1,1);
+			shadow_color=Color(0,0,0,0);
 			height=0;
 			z_min=-1024;
 			z_max=1024;
@@ -622,6 +628,7 @@ public:
 			mode=VS::CANVAS_LIGHT_MODE_ADD;
 			texture_cache=NULL;
 			next_ptr=NULL;
+			mask_next_ptr=NULL;
 			filter_next_ptr=NULL;
 			shadow_buffer_size=2048;
 			shadow_esm_mult=80;
@@ -688,7 +695,7 @@ public:
 			Rect2 rect;
 			RID texture;
 			float margin[4];
-			float draw_center;
+			bool draw_center;
 			Color color;
 			CommandStyle() { draw_center=true; type = TYPE_STYLE; }
 		};
@@ -787,6 +794,7 @@ public:
 		CanvasItem* material_owner;
 		ViewportRender *vp_render;
 		bool distance_field;
+		bool light_masked;
 
 		Rect2 global_rect_cache;
 
@@ -913,8 +921,8 @@ public:
 			return rect;
 		}
 
-		void clear() { for (int i=0;i<commands.size();i++) memdelete( commands[i] ); commands.clear(); clip=false; rect_dirty=true; final_clip_owner=NULL;  material_owner=NULL;}
-		CanvasItem() { light_mask=1; vp_render=NULL; next=NULL; final_clip_owner=NULL; clip=false; final_opacity=1;  blend_mode=VS::MATERIAL_BLEND_MODE_MIX; visible=true; rect_dirty=true; custom_rect=false; ontop=true; material_owner=NULL; material=NULL; copy_back_buffer=NULL; distance_field=false; }
+		void clear() { for (int i=0;i<commands.size();i++) memdelete( commands[i] ); commands.clear(); clip=false; rect_dirty=true; final_clip_owner=NULL;  material_owner=NULL; light_masked=false; }
+		CanvasItem() { light_mask=1; vp_render=NULL; next=NULL; final_clip_owner=NULL; clip=false; final_opacity=1;  blend_mode=VS::MATERIAL_BLEND_MODE_MIX; visible=true; rect_dirty=true; custom_rect=false; ontop=true; material_owner=NULL; material=NULL; copy_back_buffer=NULL; distance_field=false; light_masked=false; }
 		virtual ~CanvasItem() { clear(); if (copy_back_buffer) memdelete(copy_back_buffer); }
 	};
 
@@ -1020,8 +1028,11 @@ public:
 
 	virtual bool has_feature(VS::Features p_feature) const=0;
 
+	virtual void restore_framebuffer()=0;
 
 	virtual int get_render_info(VS::RenderInfo p_info)=0;
+
+	virtual void set_force_16_bits_fbo(bool p_force) {}
 
 	Rasterizer();
 	virtual ~Rasterizer() {}

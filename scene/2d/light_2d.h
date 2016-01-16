@@ -11,6 +11,7 @@ public:
 		MODE_ADD,
 		MODE_SUB,
 		MODE_MIX,
+		MODE_MASK,
 	};
 
 private:
@@ -18,6 +19,7 @@ private:
 	bool enabled;
 	bool shadow;
 	Color color;
+	Color shadow_color;
 	float height;
 	float _scale;
 	float energy;
@@ -33,6 +35,7 @@ private:
 	Ref<Texture> texture;
 	Vector2 texture_offset;
 
+	void _update_light_visibility();
 protected:
 
 	void _notification(int p_what);
@@ -94,6 +97,10 @@ public:
 
 	void set_shadow_esm_multiplier( float p_multiplier);
 	float get_shadow_esm_multiplier() const;
+
+	void set_shadow_color( const Color& p_shadow_color);
+	Color get_shadow_color() const;
+
 
 	virtual Rect2 get_item_rect() const;
 

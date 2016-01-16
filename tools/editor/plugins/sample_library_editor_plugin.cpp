@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -49,9 +49,13 @@ void SampleLibraryEditor::_notification(int p_what) {
 
 	if (p_what==NOTIFICATION_ENTER_TREE) {
 		play->set_icon( get_icon("Play","EditorIcons") );
+		play->set_tooltip("Play Sample");
 		stop->set_icon( get_icon("Stop","EditorIcons") );
+		stop->set_tooltip("Stop Sample");
 		load->set_icon( get_icon("Folder","EditorIcons") );
+		load->set_tooltip("Open Sample File(s)");
 		_delete->set_icon( get_icon("Del","EditorIcons") );
+		_delete->set_tooltip("Remove Sample");
 	}
 
 	if (p_what==NOTIFICATION_READY) {
@@ -350,13 +354,13 @@ SampleLibraryEditor::SampleLibraryEditor() {
 
 	_delete = memnew( Button );
 
-	file = memnew( FileDialog );
+	file = memnew( EditorFileDialog );
 	add_child(file);
 	List<String> extensions;
 	ResourceLoader::get_recognized_extensions_for_type("Sample",&extensions);
 	for(int i=0;i<extensions.size();i++)
 		file->add_filter("*."+extensions[i]);
-	file->set_mode(FileDialog::MODE_OPEN_FILES);
+	file->set_mode(EditorFileDialog::MODE_OPEN_FILES);
 
 	_delete->set_pos(Point2( 65, 5 ));
 	_delete->set_size( Size2(1,1 ) );

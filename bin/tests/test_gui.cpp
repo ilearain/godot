@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -109,6 +109,9 @@ public:
 		frame->set_anchor( MARGIN_RIGHT, Control::ANCHOR_END );
 		frame->set_anchor( MARGIN_BOTTOM, Control::ANCHOR_END );
 		frame->set_end( Point2(0,0) );
+
+		Ref<Theme> t = memnew( Theme );
+		frame->set_theme(t);
 		
 		get_root()->add_child( frame );
 

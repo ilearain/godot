@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -97,6 +97,15 @@ public:
 	FUNC3(texture_set_size_override,RID,int,int);
 	FUNC1RC(bool,texture_can_stream,RID);
 	FUNC3C(texture_set_reload_hook,RID,ObjectID,const StringName&);
+
+	FUNC2(texture_set_path,RID,const String&);
+	FUNC1RC(String,texture_get_path,RID);
+
+	virtual void texture_debug_usage(List<TextureInfo> *r_info) {
+		//pass directly, should lock the server anyway
+		visual_server->texture_debug_usage(r_info);
+	}
+
 
 	/* SHADER API */
 
@@ -199,6 +208,7 @@ public:
 
 	FUNC2(mesh_remove_surface,RID,int);
 	FUNC1RC(int,mesh_get_surface_count,RID);
+	FUNC1(mesh_clear,RID);
 
 
 	FUNC2(mesh_set_custom_aabb,RID,const AABB&);
@@ -626,6 +636,8 @@ public:
 	FUNC2(canvas_light_set_shadow_enabled,RID,bool);
 	FUNC2(canvas_light_set_shadow_buffer_size,RID,int);
 	FUNC2(canvas_light_set_shadow_esm_multiplier,RID,float);
+	FUNC2(canvas_light_set_shadow_color,RID,const Color&);
+
 
 
 	/* CANVAS OCCLUDER */
@@ -681,7 +693,7 @@ public:
 	virtual void init();
 	virtual void finish();
 	virtual void draw();
-	virtual void flush();
+	virtual void sync();
 	FUNC0RC(bool,has_changed);
 
 	/* RENDER INFO */

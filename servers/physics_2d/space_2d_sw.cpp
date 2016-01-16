@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -36,8 +36,8 @@ _FORCE_INLINE_ static bool _match_object_type_query(CollisionObject2DSW *p_objec
 	if ((p_object->get_layer_mask()&p_layer_mask)==0)
 		return false;
 
-	if (p_object->get_type()==CollisionObject2DSW::TYPE_AREA && !(p_type_mask&Physics2DDirectSpaceState::TYPE_MASK_AREA))
-		return false;
+	if (p_object->get_type()==CollisionObject2DSW::TYPE_AREA)
+		return p_type_mask&Physics2DDirectSpaceState::TYPE_MASK_AREA;
 
 	Body2DSW *body = static_cast<Body2DSW*>(p_object);
 
@@ -192,7 +192,7 @@ int Physics2DDirectSpaceStateSW::intersect_shape(const RID& p_shape, const Matri
 	if (p_result_max<=0)
 		return 0;
 
-	Shape2DSW *shape = static_cast<Physics2DServerSW*>(Physics2DServer::get_singleton())->shape_owner.get(p_shape);
+	Shape2DSW *shape = Physics2DServerSW::singletonsw->shape_owner.get(p_shape);
 	ERR_FAIL_COND_V(!shape,0);
 
 	Rect2 aabb = p_xform.xform(shape->get_aabb());
@@ -239,7 +239,7 @@ bool Physics2DDirectSpaceStateSW::cast_motion(const RID& p_shape, const Matrix32
 
 
 
-	Shape2DSW *shape = static_cast<Physics2DServerSW*>(Physics2DServer::get_singleton())->shape_owner.get(p_shape);
+	Shape2DSW *shape = Physics2DServerSW::singletonsw->shape_owner.get(p_shape);
 	ERR_FAIL_COND_V(!shape,false);
 
 	Rect2 aabb = p_xform.xform(shape->get_aabb());
@@ -367,7 +367,7 @@ bool Physics2DDirectSpaceStateSW::collide_shape(RID p_shape, const Matrix32& p_s
 	if (p_result_max<=0)
 		return 0;
 
-	Shape2DSW *shape = static_cast<Physics2DServerSW*>(Physics2DServer::get_singleton())->shape_owner.get(p_shape);
+	Shape2DSW *shape = Physics2DServerSW::singletonsw->shape_owner.get(p_shape);
 	ERR_FAIL_COND_V(!shape,0);
 
 	Rect2 aabb = p_shape_xform.xform(shape->get_aabb());
@@ -474,7 +474,7 @@ static void _rest_cbk_result(const Vector2& p_point_A,const Vector2& p_point_B,v
 bool Physics2DDirectSpaceStateSW::rest_info(RID p_shape, const Matrix32& p_shape_xform,const Vector2& p_motion,float p_margin,ShapeRestInfo *r_info, const Set<RID>& p_exclude,uint32_t p_layer_mask,uint32_t p_object_type_mask) {
 
 
-	Shape2DSW *shape = static_cast<Physics2DServerSW*>(Physics2DServer::get_singleton())->shape_owner.get(p_shape);
+	Shape2DSW *shape = Physics2DServerSW::singletonsw->shape_owner.get(p_shape);
 	ERR_FAIL_COND_V(!shape,0);
 
 	Rect2 aabb = p_shape_xform.xform(shape->get_aabb());
@@ -657,8 +657,8 @@ bool Space2DSW::test_body_motion(Body2DSW *p_body,const Vector2&p_motion,float p
 						const Body2DSW *body=static_cast<const Body2DSW*>(col_obj);
 
 						Vector2 cdir = body->get_one_way_collision_direction();
-						if (cdir!=Vector2() && p_motion.dot(cdir)<0)
-							continue;
+						//if (cdir!=Vector2() && p_motion.dot(cdir)<0)
+						//	continue;
 
 						cbk.valid_dir=cdir;
 						cbk.valid_depth=body->get_one_way_collision_max_depth();
@@ -1230,6 +1230,7 @@ void Space2DSW::call_queries() {
 
 void Space2DSW::setup() {
 
+	contact_debug_count=0;
 
 	while(inertia_update_list.first()) {
 		inertia_update_list.first()->self()->update_inertias();
@@ -1302,6 +1303,8 @@ Space2DSW::Space2DSW() {
 	active_objects=0;
 	island_count=0;
 
+	contact_debug_count=0;
+
 	locked=false;
 	contact_recycle_radius=0.01;
 	contact_max_separation=0.05;
@@ -1320,6 +1323,10 @@ Space2DSW::Space2DSW() {
 
 	direct_access = memnew( Physics2DDirectSpaceStateSW );
 	direct_access->space=this;
+
+
+
+
 }
 
 Space2DSW::~Space2DSW() {

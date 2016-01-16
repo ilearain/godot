@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -36,7 +36,7 @@
 
 Shader::Mode Shader::get_mode() const {
 
-	return (Mode)VisualServer::get_singleton()->shader_get_mode(shader);
+	return mode;
 }
 
 void Shader::set_code( const String& p_vertex, const String& p_fragment, const String& p_light,int p_fragment_ofs,int p_light_ofs) {
@@ -203,6 +203,7 @@ void Shader::_bind_methods() {
 
 Shader::Shader(Mode p_mode) {
 
+	mode=p_mode;
 	shader = VisualServer::get_singleton()->shader_create(VS::ShaderMode(p_mode));
 	params_cache_dirty=true;
 }
@@ -218,7 +219,10 @@ Shader::~Shader() {
 
 
 
-RES ResourceFormatLoaderShader::load(const String &p_path,const String& p_original_path) {
+RES ResourceFormatLoaderShader::load(const String &p_path, const String& p_original_path, Error *r_error) {
+
+	if (r_error)
+		*r_error=ERR_FILE_CANT_OPEN;
 
 	String fragment_code;
 	String vertex_code;
@@ -234,6 +238,8 @@ RES ResourceFormatLoaderShader::load(const String &p_path,const String& p_origin
 	ERR_FAIL_COND_V(err,RES());
 	String base_path = p_path.get_base_dir();
 
+	if (r_error)
+		*r_error=ERR_FILE_CORRUPT;
 
 	Ref<Shader> shader;//( memnew( Shader ) );
 
@@ -434,37 +440,27 @@ RES ResourceFormatLoaderShader::load(const String &p_path,const String& p_origin
 
 	f->close();
 	memdelete(f);
+	if (r_error)
+		*r_error=OK;
 
 	return shader;
 }
 
 void ResourceFormatLoaderShader::get_recognized_extensions(List<String> *p_extensions) const {
 
-	p_extensions->push_back("shader");
+	ObjectTypeDB::get_extensions_for_type("Shader", p_extensions);
 }
+
 bool ResourceFormatLoaderShader::handles_type(const String& p_type) const {
 
-	return p_type=="Shader";
+	return ObjectTypeDB::is_type(p_type, "Shader");
 }
 
 
 String ResourceFormatLoaderShader::get_resource_type(const String &p_path) const {
 
-	if (p_path.extension().to_lower()=="shader")
+	if (p_path.extension().to_lower()=="shd")
 		return "Shader";
 	return "";
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 

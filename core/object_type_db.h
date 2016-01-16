@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -117,6 +117,7 @@ class ObjectTypeDB {
 		StringName getter;
 		MethodBind *_setptr;
 		MethodBind *_getptr;
+		Variant::Type type;
 	};
 
 	struct TypeInfo {
@@ -228,13 +229,13 @@ public:
 		T::register_custom_data_to_otdb();
 	}
 
-	static void get_type_list( List<String> *p_types);
-	static void get_inheriters_from( const String& p_type,List<String> *p_types);
-	static String type_inherits_from(const String& p_type);
-	static bool type_exists(const String &p_type);
-	static bool is_type(const String &p_type,const String& p_inherits);
-	static bool can_instance(const String &p_type);	
-	static Object *instance(const String &p_type);
+	static void get_type_list( List<StringName> *p_types);
+	static void get_inheriters_from( const StringName& p_type,List<StringName> *p_types);
+	static StringName type_inherits_from(const StringName& p_type);
+	static bool type_exists(const StringName &p_type);
+	static bool is_type(const StringName &p_type,const StringName& p_inherits);
+	static bool can_instance(const StringName &p_type);
+	static Object *instance(const StringName &p_type);
 
 #if 0
 	template<class N, class M>
@@ -456,8 +457,9 @@ public:
 
 	static void add_property(StringName p_type,const PropertyInfo& p_pinfo, const StringName& p_setter, const StringName& p_getter, int p_index=-1);
 	static void get_property_list(StringName p_type,List<PropertyInfo> *p_list,bool p_no_inheritance=false);
-	static bool set_property(Object* p_object,const StringName& p_property, const Variant& p_value);
+	static bool set_property(Object* p_object, const StringName& p_property, const Variant& p_value, bool *r_valid=NULL);
 	static bool get_property(Object* p_object,const StringName& p_property, Variant& r_value);
+	static Variant::Type get_property_type(const StringName& p_type, const StringName& p_property,bool *r_is_valid=NULL);
 
 
 
@@ -475,7 +477,9 @@ public:
 	static void get_integer_constant_list(const StringName& p_type, List<String> *p_constants, bool p_no_inheritance=false);
 	static int get_integer_constant(const StringName& p_type, const StringName &p_name, bool *p_success=NULL);
 	static StringName get_category(const StringName& p_node);
-	
+
+	static bool get_setter_and_type_for_property(const StringName& p_class, const StringName& p_prop, StringName& r_class, StringName& r_setter);
+
 	static void set_type_enabled(StringName p_type,bool p_enable);
 	static bool is_type_enabled(StringName p_type);
 

@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -102,7 +102,7 @@ void ResourcePreloaderEditor::_load_pressed() {
 	for(int i=0;i<extensions.size();i++)
 		file->add_filter("*."+extensions[i]);
 
-	file->set_mode(FileDialog::MODE_OPEN_FILE);
+	file->set_mode(EditorFileDialog::MODE_OPEN_FILE);
 
 	file->popup_centered_ratio();
 
@@ -310,7 +310,7 @@ ResourcePreloaderEditor::ResourcePreloaderEditor() {
 	paste->set_text("Paste");
 	hbc->add_child(paste);
 
-	file = memnew( FileDialog );
+	file = memnew( EditorFileDialog );
 	add_child(file);
 
 

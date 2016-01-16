@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -293,6 +293,9 @@ public:
 	// this function only works on fixed process, errors and returns null otherwise
 	virtual Physics2DDirectSpaceState* space_get_direct_state(RID p_space)=0;
 
+	virtual void space_set_debug_contacts(RID p_space,int p_max_contacts)=0;
+	virtual Vector<Vector2> space_get_contacts(RID p_space) const=0;
+	virtual int space_get_contact_count(RID p_space) const=0;
 
 	//missing space parameters
 
@@ -306,6 +309,7 @@ public:
 		AREA_PARAM_GRAVITY,
 		AREA_PARAM_GRAVITY_VECTOR,
 		AREA_PARAM_GRAVITY_IS_POINT,
+		AREA_PARAM_GRAVITY_DISTANCE_SCALE,
 		AREA_PARAM_GRAVITY_POINT_ATTENUATION,
 		AREA_PARAM_LINEAR_DAMP,
 		AREA_PARAM_ANGULAR_DAMP,
@@ -321,7 +325,9 @@ public:
 	enum AreaSpaceOverrideMode {
 		AREA_SPACE_OVERRIDE_DISABLED,
 		AREA_SPACE_OVERRIDE_COMBINE,
+		AREA_SPACE_OVERRIDE_COMBINE_REPLACE, // Combines, then discards all subsequent calculations
 		AREA_SPACE_OVERRIDE_REPLACE,
+		AREA_SPACE_OVERRIDE_REPLACE_COMBINE // Discards all previous calculations, then keeps combining
 	};
 
 	virtual void area_set_space_override_mode(RID p_area, AreaSpaceOverrideMode p_mode)=0;
@@ -511,6 +517,13 @@ public:
 	virtual RID pin_joint_create(const Vector2& p_anchor,RID p_body_a,RID p_body_b=RID())=0;
 	virtual RID groove_joint_create(const Vector2& p_a_groove1,const Vector2& p_a_groove2, const Vector2& p_b_anchor, RID p_body_a,RID p_body_b)=0;
 	virtual RID damped_spring_joint_create(const Vector2& p_anchor_a,const Vector2& p_anchor_b,RID p_body_a,RID p_body_b=RID())=0;
+
+	enum PinJointParam {
+		PIN_JOINT_SOFTNESS
+	};
+
+	virtual void pin_joint_set_param(RID p_joint, PinJointParam p_param, real_t p_value)=0;
+	virtual real_t pin_joint_get_param(RID p_joint, PinJointParam p_param) const=0;
 
 	enum DampedStringParam {
 		DAMPED_STRING_REST_LENGTH,

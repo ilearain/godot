@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -518,10 +518,16 @@ public:
 
 		if (value->prev_ptr) {
 			value->prev_ptr->next_ptr = value->next_ptr;
-		};
+		}
+		else {
+			_data->first = value->next_ptr;
+		}
 		if (value->next_ptr) {
 			value->next_ptr->prev_ptr = value->prev_ptr;
-		};
+		}
+		else {
+			_data->last = value->prev_ptr;
+		}
 
 		value->next_ptr = where;
 		if (!where) {

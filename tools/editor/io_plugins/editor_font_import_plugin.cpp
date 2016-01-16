@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -28,7 +28,7 @@
 /*************************************************************************/
 #include "editor_font_import_plugin.h"
 #include "scene/gui/dialogs.h"
-#include "scene/gui/file_dialog.h"
+#include "tools/editor/editor_file_dialog.h"
 #include "tools/editor/editor_node.h"
 #include "os/file_access.h"
 #include "editor_atlas.h"
@@ -379,8 +379,8 @@ class EditorFontImportDialog : public ConfirmationDialog {
 	OBJ_TYPE(EditorFontImportDialog, ConfirmationDialog);
 
 
-	LineEditFileChooser *source;
-	LineEditFileChooser *dest;
+	EditorLineEditFileChooser *source;
+	EditorLineEditFileChooser *dest;
 	SpinBox *font_size;
 	LineEdit *test_string;
 	ColorPickerButton *test_color;
@@ -520,6 +520,10 @@ class EditorFontImportDialog : public ConfirmationDialog {
 			return;
 		}
 
+		if (dest->get_line_edit()->get_text().get_file()==".fnt") {
+			dest->get_line_edit()->set_text(dest->get_line_edit()->get_text().get_base_dir() + "/" + source->get_line_edit()->get_text().get_file().basename() + ".fnt" );
+		}
+
 		Ref<ResourceImportMetadata> rimd = get_rimd();
 
 		if (rimd.is_null()) {
@@ -612,11 +616,12 @@ public:
 		hbc->add_child(vbr);
 		vbr->set_h_size_flags(SIZE_EXPAND_FILL);
 
-		source = memnew( LineEditFileChooser );
-		source->get_file_dialog()->set_access(FileDialog::ACCESS_FILESYSTEM);
-		source->get_file_dialog()->set_mode(FileDialog::MODE_OPEN_FILE);
+		source = memnew( EditorLineEditFileChooser );
+		source->get_file_dialog()->set_access(EditorFileDialog::ACCESS_FILESYSTEM);
+		source->get_file_dialog()->set_mode(EditorFileDialog::MODE_OPEN_FILE);
 		source->get_file_dialog()->add_filter("*.ttf;TrueType");
 		source->get_file_dialog()->add_filter("*.otf;OpenType");
+		source->get_file_dialog()->add_filter("*.fnt;BMFont");
 		source->get_line_edit()->connect("text_entered",this,"_src_changed");
 
 		vbl->add_margin_child("Source Font:",source);
@@ -626,7 +631,7 @@ public:
 		font_size->set_max(256);
 		font_size->set_val(16);
 		font_size->connect("value_changed",this,"_font_size_changed");
-		dest = memnew( LineEditFileChooser );
+		dest = memnew( EditorLineEditFileChooser );
 		//
 		List<String> fl;
 		Ref<Font> font= memnew(Font);
@@ -872,10 +877,31 @@ static unsigned char get_SDF_radial(
 
 Ref<Font> EditorFontImportPlugin::generate_font(const Ref<ResourceImportMetadata>& p_from, const String &p_existing) {
 
+
+
 	Ref<ResourceImportMetadata> from = p_from;
 	ERR_FAIL_COND_V(from->get_source_count()!=1,Ref<Font>());
 
 	String src_path = EditorImportPlugin::expand_source_path(from->get_source_path(0));
+
+	if (src_path.extension().to_lower()=="fnt") {
+
+		if (ResourceLoader::load(src_path).is_valid()) {
+			EditorNode::get_singleton()->show_warning("Path: "+src_path+"\nIs a Godot font file, please supply a BMFont type file instead.");
+			return Ref<Font>();
+		}
+
+		Ref<Font> font;
+		font.instance();
+		Error err = font->create_from_fnt(src_path);
+		if (err) {
+			EditorNode::get_singleton()->show_warning("Path: "+src_path+"\nFailed opening as BMFont file.");
+			return Ref<Font>();
+		}
+
+		return font;
+	}
+
 	int size = from->get_option("font/size");
 
 #ifdef FREETYPE_ENABLED

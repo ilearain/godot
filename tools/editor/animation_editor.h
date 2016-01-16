@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -44,7 +44,7 @@
 #include "scene_tree_editor.h"
 #include "editor_data.h"
 #include "property_editor.h"
-
+#include "scene_tree_editor.h"
 
 class AnimationKeyEdit;
 class AnimationCurveEdit;
@@ -70,9 +70,9 @@ class AnimationKeyEditor : public VBoxContainer  {
 
 	enum {
 
-		TRACK_MENU_ADD_VALUE_TRACK,
-		TRACK_MENU_ADD_TRANSFORM_TRACK,
-		TRACK_MENU_ADD_CALL_TRACK,
+		ADD_TRACK_MENU_ADD_VALUE_TRACK,
+		ADD_TRACK_MENU_ADD_TRANSFORM_TRACK,
+		ADD_TRACK_MENU_ADD_CALL_TRACK,
 		TRACK_MENU_SCALE,
 		TRACK_MENU_SCALE_PIVOT,
 		TRACK_MENU_MOVE_UP,
@@ -89,6 +89,8 @@ class AnimationKeyEditor : public VBoxContainer  {
 		TRACK_MENU_NEXT_STEP,
 		TRACK_MENU_PREV_STEP,
 		TRACK_MENU_OPTIMIZE,
+		TRACK_MENU_CLEAN_UP,
+		TRACK_MENU_CLEAN_UP_CONFIRM,
 		CURVE_SET_LINEAR,
 		CURVE_SET_IN,
 		CURVE_SET_OUT,
@@ -190,8 +192,14 @@ class AnimationKeyEditor : public VBoxContainer  {
 	SpinBox *optimize_angular_error;
 	SpinBox *optimize_max_angle;
 
+	ConfirmationDialog *cleanup_dialog;
+	CheckButton *cleanup_keys;
+	CheckButton *cleanup_tracks;
+	CheckButton *cleanup_all;
+
 	SpinBox *step;
 
+	MenuButton *menu_add_track;
 	MenuButton *menu_track;
 
 	HScrollBar *h_scroll;
@@ -205,6 +213,8 @@ class AnimationKeyEditor : public VBoxContainer  {
 	SpinBox *scale;
 
 	PropertyEditor *key_editor;	
+
+	SceneTreeDialog *call_select;
 
 	Ref<Animation> animation;
 	void _update_paths();
@@ -281,9 +291,11 @@ class AnimationKeyEditor : public VBoxContainer  {
 
 	void _animation_changed();
 	void _animation_optimize();
+	void _cleanup_animation(Ref<Animation> p_animation);
 
 	void _scroll_changed(double);
 
+	void _menu_add_track(int p_type);
 	void _menu_track(int p_type);
 
 	void _clear_selection_for_anim(const Ref<Animation>& p_anim);
@@ -298,6 +310,8 @@ class AnimationKeyEditor : public VBoxContainer  {
 
 	void _toggle_edit_curves();
 	void _animation_len_update();
+
+	void _add_call_track(const NodePath& p_base);
 
 	void _root_removed();
 protected:

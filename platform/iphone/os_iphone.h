@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -43,8 +43,11 @@
 #include "servers/audio/sample_manager_sw.h"
 #include "servers/spatial_sound/spatial_sound_server_sw.h"
 #include "servers/spatial_sound_2d/spatial_sound_2d_server_sw.h"
+#include "main/input_default.h"
 #include "game_center.h"
 #include "in_app_store.h"
+#include "icloud.h"
+
 
 class AudioDriverIphone;
 class RasterizerGLES2;
@@ -87,6 +90,9 @@ private:
 #endif
 #ifdef STOREKIT_ENABLED
 	InAppStore* store_kit;
+#endif
+#ifdef ICLOUD_ENABLED
+	ICloud* icloud;
 #endif
 
 	MainLoop *main_loop;

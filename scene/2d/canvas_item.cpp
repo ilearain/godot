@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -265,7 +265,7 @@ void CanvasItem::_propagate_visibility_changed(bool p_visible) {
 
 		CanvasItem *c=get_child(i)->cast_to<CanvasItem>();
 
-		if (c && c->hidden!=p_visible) //should the toplevels stop propagation? i think so but..
+		if (c && !c->hidden) //should the toplevels stop propagation? i think so but..
 			c->_propagate_visibility_changed(p_visible);
 	}
 
@@ -307,6 +307,15 @@ void CanvasItem::hide() {
 		_propagate_visibility_changed(false);
 
 	_change_notify("visibility/visible");
+}
+
+void CanvasItem::set_hidden(bool p_hidden) {
+	
+	if (hidden == p_hidden) {
+		return;
+	}
+	
+	_set_visible_(!p_hidden);
 }
 
 
@@ -380,8 +389,8 @@ Matrix32 CanvasItem::get_global_transform_with_canvas() const {
 
 	if (last_valid->canvas_layer)
 		return last_valid->canvas_layer->get_transform() * xform;
-	else
-		return xform;
+	else if (is_inside_tree())
+		return get_viewport()->get_canvas_transform() * xform;
 }
 
 Matrix32 CanvasItem::get_global_transform() const {
@@ -539,6 +548,7 @@ void CanvasItem::_notification(int p_what) {
 				get_parent()->cast_to<CanvasItem>()->children_items.erase(C);
 				C=NULL;
 			}
+			global_invalid=true;
 		} break;
 		case NOTIFICATION_DRAW: {
 
@@ -700,7 +710,7 @@ void CanvasItem::draw_circle(const Point2& p_pos, float p_radius, const Color& p
 
 }
 
-void CanvasItem::draw_texture(const Ref<Texture>& p_texture,const Point2& p_pos) {
+void CanvasItem::draw_texture(const Ref<Texture>& p_texture,const Point2& p_pos,const Color& p_modulate) {
 
 	if (!drawing) {
 		ERR_EXPLAIN("Drawing is only allowed inside NOTIFICATION_DRAW, _draw() function or 'draw' signal.");
@@ -709,7 +719,7 @@ void CanvasItem::draw_texture(const Ref<Texture>& p_texture,const Point2& p_pos)
 
 	ERR_FAIL_COND(p_texture.is_null());
 
-	p_texture->draw(canvas_item,p_pos);
+	p_texture->draw(canvas_item,p_pos,p_modulate);
 }
 
 void CanvasItem::draw_texture_rect(const Ref<Texture>& p_texture,const Rect2& p_rect, bool p_tile,const Color& p_modulate, bool p_transpose) {
@@ -764,7 +774,7 @@ void CanvasItem::draw_set_transform(const Point2& p_offset, float p_rot, const S
 
 	Matrix32 xform(p_rot,p_offset);
 	xform.scale_basis(p_scale);
-	VisualServer::get_singleton()->canvas_item_set_transform(canvas_item,xform);
+	VisualServer::get_singleton()->canvas_item_add_set_transform(canvas_item,xform);
 }
 
 void CanvasItem::draw_polygon(const Vector<Point2>& p_points, const Vector<Color>& p_colors,const Vector<Point2>& p_uvs, Ref<Texture> p_texture) {
@@ -1043,6 +1053,7 @@ void CanvasItem::_bind_methods() {
 	ObjectTypeDB::bind_method(_MD("is_hidden"),&CanvasItem::is_hidden);
 	ObjectTypeDB::bind_method(_MD("show"),&CanvasItem::show);
 	ObjectTypeDB::bind_method(_MD("hide"),&CanvasItem::hide);
+	ObjectTypeDB::bind_method(_MD("set_hidden","hidden"),&CanvasItem::set_hidden);
 
 	ObjectTypeDB::bind_method(_MD("update"),&CanvasItem::update);
 
@@ -1070,9 +1081,9 @@ void CanvasItem::_bind_methods() {
 	ObjectTypeDB::bind_method(_MD("draw_line","from","to","color","width"),&CanvasItem::draw_line,DEFVAL(1.0));
 	ObjectTypeDB::bind_method(_MD("draw_rect","rect","color"),&CanvasItem::draw_rect);
 	ObjectTypeDB::bind_method(_MD("draw_circle","pos","radius","color"),&CanvasItem::draw_circle);
-	ObjectTypeDB::bind_method(_MD("draw_texture","texture:Texture","pos"),&CanvasItem::draw_texture);
-	ObjectTypeDB::bind_method(_MD("draw_texture_rect","texture:Texture","rect","tile","modulate"),&CanvasItem::draw_texture_rect,DEFVAL(false),DEFVAL(Color(1,1,1)));
-	ObjectTypeDB::bind_method(_MD("draw_texture_rect_region","texture:Texture","rect","src_rect","modulate"),&CanvasItem::draw_texture_rect_region,DEFVAL(Color(1,1,1)));
+	ObjectTypeDB::bind_method(_MD("draw_texture","texture:Texture","pos","modulate"),&CanvasItem::draw_texture,DEFVAL(Color(1,1,1,1)));
+	ObjectTypeDB::bind_method(_MD("draw_texture_rect","texture:Texture","rect","tile","modulate","transpose"),&CanvasItem::draw_texture_rect,DEFVAL(Color(1,1,1)),DEFVAL(false));
+	ObjectTypeDB::bind_method(_MD("draw_texture_rect_region","texture:Texture","rect","src_rect","modulate","transpose"),&CanvasItem::draw_texture_rect_region,DEFVAL(Color(1,1,1)),DEFVAL(false));
 	ObjectTypeDB::bind_method(_MD("draw_style_box","style_box:StyleBox","rect"),&CanvasItem::draw_style_box);
 	ObjectTypeDB::bind_method(_MD("draw_primitive","points","colors","uvs","texture:Texture","width"),&CanvasItem::draw_primitive,DEFVAL(Array()),DEFVAL(Ref<Texture>()),DEFVAL(1.0));
 	ObjectTypeDB::bind_method(_MD("draw_polygon","points","colors","uvs","texture:Texture"),&CanvasItem::draw_polygon,DEFVAL(Array()),DEFVAL(Ref<Texture>()));
@@ -1103,14 +1114,14 @@ void CanvasItem::_bind_methods() {
 
 	BIND_VMETHOD(MethodInfo("_draw"));
 
-	ADD_PROPERTY( PropertyInfo(Variant::BOOL,"visibility/visible"), _SCS("_set_visible_"),_SCS("_is_visible_") );
-	ADD_PROPERTY( PropertyInfo(Variant::REAL,"visibility/opacity",PROPERTY_HINT_RANGE, "0,1,0.01"), _SCS("set_opacity"),_SCS("get_opacity") );
-	ADD_PROPERTY( PropertyInfo(Variant::REAL,"visibility/self_opacity",PROPERTY_HINT_RANGE, "0,1,0.01"), _SCS("set_self_opacity"),_SCS("get_self_opacity") );
+	ADD_PROPERTYNO( PropertyInfo(Variant::BOOL,"visibility/visible"), _SCS("_set_visible_"),_SCS("_is_visible_") );
+	ADD_PROPERTYNO( PropertyInfo(Variant::REAL,"visibility/opacity",PROPERTY_HINT_RANGE, "0,1,0.01"), _SCS("set_opacity"),_SCS("get_opacity") );
+	ADD_PROPERTYNO( PropertyInfo(Variant::REAL,"visibility/self_opacity",PROPERTY_HINT_RANGE, "0,1,0.01"), _SCS("set_self_opacity"),_SCS("get_self_opacity") );
 	ADD_PROPERTYNZ( PropertyInfo(Variant::BOOL,"visibility/behind_parent"), _SCS("set_draw_behind_parent"),_SCS("is_draw_behind_parent_enabled") );
 	ADD_PROPERTY( PropertyInfo(Variant::BOOL,"visibility/on_top",PROPERTY_HINT_NONE,"",0), _SCS("_set_on_top"),_SCS("_is_on_top") ); //compatibility
 
 	ADD_PROPERTYNZ( PropertyInfo(Variant::INT,"visibility/blend_mode",PROPERTY_HINT_ENUM, "Mix,Add,Sub,Mul,PMAlpha"), _SCS("set_blend_mode"),_SCS("get_blend_mode") );
-	ADD_PROPERTYNZ( PropertyInfo(Variant::INT,"visibility/light_mask",PROPERTY_HINT_ALL_FLAGS), _SCS("set_light_mask"),_SCS("get_light_mask") );
+	ADD_PROPERTYNO( PropertyInfo(Variant::INT,"visibility/light_mask",PROPERTY_HINT_ALL_FLAGS), _SCS("set_light_mask"),_SCS("get_light_mask") );
 	ADD_PROPERTYNZ( PropertyInfo(Variant::OBJECT,"material/material",PROPERTY_HINT_RESOURCE_TYPE, "CanvasItemMaterial"), _SCS("set_material"),_SCS("get_material") );
 	ADD_PROPERTYNZ( PropertyInfo(Variant::BOOL,"material/use_parent"), _SCS("set_use_parent_material"),_SCS("get_use_parent_material") );
 	//exporting these two things doesn't really make much sense i think
@@ -1146,6 +1157,8 @@ Matrix32 CanvasItem::get_canvas_transform() const {
 
 	if (canvas_layer)
 		return canvas_layer->get_transform();
+	else if (get_parent()->cast_to<CanvasItem>())
+		return get_parent()->cast_to<CanvasItem>()->get_canvas_transform();
 	else
 		return get_viewport()->get_canvas_transform();
 
@@ -1172,6 +1185,14 @@ Matrix32 CanvasItem::get_viewport_transform() const {
 }
 
 
+void CanvasItem::set_notify_local_transform(bool p_enable) {
+	notify_local_transform=p_enable;
+}
+
+bool CanvasItem::is_local_transform_notification_enabled() const {
+	return notify_local_transform;
+}
+
 CanvasItem::CanvasItem() : xform_change(this) {
 
 
@@ -1191,6 +1212,7 @@ CanvasItem::CanvasItem() : xform_change(this) {
 	canvas_layer=NULL;
 	use_parent_material=false;
 	global_invalid=true;
+	notify_local_transform=false;
 	light_mask=1;
 
 	C=NULL;

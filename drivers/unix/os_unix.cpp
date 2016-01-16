@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -57,17 +57,33 @@
 #include <errno.h>
 #include <assert.h>
 #include "globals.h"
+
+extern bool _print_error_enabled;
+
 void OS_Unix::print_error(const char* p_function,const char* p_file,int p_line,const char *p_code,const char*p_rationale,ErrorType p_type) {
 
-	if (p_rationale && p_rationale[0]) {
+	if (!_print_error_enabled)
+		return;
 
-		print("\E[1;31;40mERROR: %s: \E[1;37;40m%s\n",p_function,p_rationale);
-		print("\E[0;31;40m   At: %s:%i.\E[0;0;37m\n",p_file,p_line);
+	const char* err_details;
+	if (p_rationale && p_rationale[0])
+		err_details=p_rationale;
+	else
+		err_details=p_code;
 
-	} else {
-		print("\E[1;31;40mERROR: %s: \E[1;37;40m%s\n",p_function,p_code);
-		print("\E[0;31;40m   At: %s:%i.\E[0;0;37m\n",p_file,p_line);
-
+	switch(p_type) {
+		case ERR_ERROR:
+			print("\E[1;31mERROR: %s: \E[0m\E[1m%s\n",p_function,err_details);
+			print("\E[0;31m   At: %s:%i.\E[0m\n",p_file,p_line);
+			break;
+		case ERR_WARNING:
+			print("\E[1;33mWARNING: %s: \E[0m\E[1m%s\n",p_function,err_details);
+			print("\E[0;33m   At: %s:%i.\E[0m\n",p_file,p_line);
+			break;
+		case ERR_SCRIPT:
+			print("\E[1;35mSCRIPT ERROR: %s: \E[0m\E[1m%s\n",p_function,err_details);
+			print("\E[0;35m   At: %s:%i.\E[0m\n",p_file,p_line);
+			break;
 	}
 }
 
@@ -133,8 +149,7 @@ void OS_Unix::finalize_core() {
 
 	if (mempool_dynamic)
 		memdelete( mempool_dynamic );
-	if (mempool_static)
-		delete mempool_static;
+	delete mempool_static;
 
 }
 
@@ -217,31 +232,73 @@ uint64_t OS_Unix::get_unix_time() const {
 	return time(NULL);
 };
 
+uint64_t OS_Unix::get_system_time_secs() const {
+	struct timeval tv_now;
+	gettimeofday(&tv_now, NULL);
+	//localtime(&tv_now.tv_usec);
+	//localtime((const long *)&tv_now.tv_usec);
+	return uint64_t(tv_now.tv_sec);
+}
 
-OS::Date OS_Unix::get_date() const {
+
+OS::Date OS_Unix::get_date(bool utc) const {
 
 	time_t t=time(NULL);
-	struct tm *lt=localtime(&t);
+	struct tm *lt;
+	if (utc)
+		lt=gmtime(&t);
+	else
+		lt=localtime(&t);
 	Date ret;
 	ret.year=1900+lt->tm_year;
-	ret.month=(Month)lt->tm_mon;
+	ret.month=(Month)(lt->tm_mon + 1);
 	ret.day=lt->tm_mday;
 	ret.weekday=(Weekday)lt->tm_wday;
 	ret.dst=lt->tm_isdst;
 	
 	return ret;
 }
-OS::Time OS_Unix::get_time() const {
-
+OS::Time OS_Unix::get_time(bool utc) const {
 	time_t t=time(NULL);
-	struct tm *lt=localtime(&t);
+	struct tm *lt;
+	if (utc)
+		lt=gmtime(&t);
+	else
+		lt=localtime(&t);
 	Time ret;
 	ret.hour=lt->tm_hour;
 	ret.min=lt->tm_min;
 	ret.sec=lt->tm_sec;
+	get_time_zone_info();
 	return ret;
 }
-	
+
+OS::TimeZoneInfo OS_Unix::get_time_zone_info() const {
+	time_t t = time(NULL);
+	struct tm *lt = localtime(&t);
+	char name[16];
+	strftime(name, 16, "%Z", lt);
+	name[15] = 0;
+	TimeZoneInfo ret;
+	ret.name = name;
+
+	char bias_buf[16];
+	strftime(bias_buf, 16, "%z", lt);
+	int bias;
+	bias_buf[15] = 0;
+	sscanf(bias_buf, "%d", &bias);
+
+	// convert from ISO 8601 (1 minute=1, 1 hour=100) to minutes
+	int hour = (int)bias / 100;
+	int minutes = bias % 100;
+	if (bias < 0)
+		ret.bias = hour * 60 - minutes;
+	else
+		ret.bias = hour * 60 + minutes;
+
+	return ret;
+}
+
 void OS_Unix::delay_usec(uint32_t p_usec) const {
 
 	usleep(p_usec);
@@ -416,6 +473,14 @@ String OS_Unix::get_data_dir() const {
 
 	return Globals::get_singleton()->get_resource_path();
 
+}
+
+String OS_Unix::get_installed_templates_path() const {
+	String p=get_global_settings_path();
+	if (p!="")
+		return p+"/templates/";
+	else
+		return "";
 }
 
 String OS_Unix::get_executable_path() const {

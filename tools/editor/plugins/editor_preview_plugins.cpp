@@ -5,6 +5,8 @@
 #include "os/os.h"
 #include "scene/resources/material.h"
 #include "scene/resources/sample.h"
+#include "scene/resources/mesh.h"
+#include "scene/resources/bit_mask.h"
 
 bool EditorTexturePreviewPlugin::handles(const String& p_type) const {
 
@@ -24,7 +26,7 @@ Ref<Texture> EditorTexturePreviewPlugin::generate(const RES& p_from) {
 	if (img.is_compressed()) {
 		if (img.decompress()!=OK)
 			return Ref<Texture>();
-	} else if (img.get_format()!=Image::FORMAT_RGB && img.get_format()!=Image::FORMAT_RGB) {
+    } else if (img.get_format()!=Image::FORMAT_RGB && img.get_format()!=Image::FORMAT_RGBA) {
 		img.convert(Image::FORMAT_RGBA);
 	}
 
@@ -57,19 +59,95 @@ EditorTexturePreviewPlugin::EditorTexturePreviewPlugin() {
 
 }
 
+////////////////////////////////////////////////////////////////////////////
+
+bool EditorBitmapPreviewPlugin::handles(const String& p_type) const {
+
+	return ObjectTypeDB::is_type(p_type,"BitMap");
+}
+
+Ref<Texture> EditorBitmapPreviewPlugin::generate(const RES& p_from) {
+
+	Ref<BitMap> bm =p_from;
+
+	if (bm->get_size()==Size2()) {
+		return Ref<Texture>();
+	}
+
+	DVector<uint8_t> data;
+
+	data.resize(bm->get_size().width*bm->get_size().height);
+
+	{
+		DVector<uint8_t>::Write w=data.write();
+
+		for(int i=0;i<bm->get_size().width;i++) {
+			for(int j=0;j<bm->get_size().height;j++) {
+				if (bm->get_bit(Point2i(i,j))) {
+					w[j*bm->get_size().width+i]=255;
+				} else {
+					w[j*bm->get_size().width+i]=0;
+
+				}
+			}
+
+		}
+	}
+
+
+	Image img(bm->get_size().width,bm->get_size().height,0,Image::FORMAT_GRAYSCALE,data);
+
+	int thumbnail_size = EditorSettings::get_singleton()->get("file_dialog/thumbnail_size");
+	if (img.is_compressed()) {
+		if (img.decompress()!=OK)
+			return Ref<Texture>();
+	} else if (img.get_format()!=Image::FORMAT_RGB && img.get_format()!=Image::FORMAT_RGBA) {
+		img.convert(Image::FORMAT_RGBA);
+	}
+
+	int width,height;
+	if (img.get_width() > thumbnail_size && img.get_width() >= img.get_height()) {
+
+		width=thumbnail_size;
+		height = img.get_height() * thumbnail_size / img.get_width();
+	} else if (img.get_height() > thumbnail_size &&  img.get_height() >= img.get_width()) {
+
+		height=thumbnail_size;
+		width = img.get_width() * thumbnail_size / img.get_height();
+	}  else {
+
+		width=img.get_width();
+		height=img.get_height();
+	}
+
+	img.resize(width,height);
+
+	Ref<ImageTexture> ptex = Ref<ImageTexture>( memnew( ImageTexture ));
+
+	ptex->create_from_image(img,0);
+	return ptex;
+
+}
+
+EditorBitmapPreviewPlugin::EditorBitmapPreviewPlugin() {
+
+
+}
+
 ///////////////////////////////////////////////////////////////////////////
 
 
 Ref<Texture> EditorPackedScenePreviewPlugin::_gen_from_imd(Ref<ResourceImportMetadata> p_imd) {
 
-	if (p_imd.is_null())
+	if (p_imd.is_null()) {
 		return Ref<Texture>();
+	}
 
 	if (!p_imd->has_option("thumbnail"))
 		return Ref<Texture>();
 
 	Variant tn = p_imd->get_option("thumbnail");
-	print_line(Variant::get_type_name(tn.get_type()));
+	//print_line(Variant::get_type_name(tn.get_type()));
 	DVector<uint8_t> thumbnail = tn;
 
 	int len = thumbnail.size();
@@ -489,8 +567,14 @@ Ref<Texture> EditorSamplePreviewPlugin::generate(const RES& p_from) {
 					ima_adpcm.last_nibble++;
 					const uint8_t *src_ptr=sdata;
 
+					int ofs = ima_adpcm.last_nibble>>1;
+
+					if (stereo)
+						ofs*=2;
+
+
 					nibble = (ima_adpcm.last_nibble&1)?
-							(src_ptr[ima_adpcm.last_nibble>>1]>>4):(src_ptr[ima_adpcm.last_nibble>>1]&0xF);
+							(src_ptr[ofs]>>4):(src_ptr[ofs]&0xF);
 					step=_ima_adpcm_step_table[ima_adpcm.step_index];
 
 					ima_adpcm.step_index += _ima_adpcm_index_table[nibble];
@@ -662,3 +746,114 @@ EditorSamplePreviewPlugin::EditorSamplePreviewPlugin() {
 }
 
 ///////////////////////////////////////////////////////////////////////////
+
+bool EditorMeshPreviewPlugin::handles(const String& p_type) const {
+
+	return ObjectTypeDB::is_type(p_type,"Mesh"); //any Mesh
+}
+
+Ref<Texture> EditorMeshPreviewPlugin::generate(const RES& p_from) {
+
+	Ref<Mesh> mesh = p_from;
+	ERR_FAIL_COND_V(mesh.is_null(),Ref<Texture>());
+
+	VS::get_singleton()->instance_set_base(mesh_instance,mesh->get_rid());
+
+	AABB aabb= mesh->get_aabb();
+	Vector3 ofs = aabb.pos + aabb.size*0.5;
+	aabb.pos-=ofs;
+	Transform xform;
+	xform.basis=Matrix3().rotated(Vector3(0,1,0),Math_PI*0.125);
+	xform.basis = Matrix3().rotated(Vector3(1,0,0),-Math_PI*0.125)*xform.basis;
+	AABB rot_aabb = xform.xform(aabb);
+	float m = MAX(rot_aabb.size.x,rot_aabb.size.y)*0.5;
+	if (m==0)
+		return Ref<Texture>();
+	m=1.0/m;
+	m*=0.5;
+	//print_line("scale: "+rtos(m));
+	xform.basis.scale(Vector3(m,m,m));
+	xform.origin=-xform.basis.xform(ofs); //-ofs*m;
+	xform.origin.z-=rot_aabb.size.z*2;
+	VS::get_singleton()->instance_set_transform(mesh_instance,xform);
+
+
+
+	VS::get_singleton()->viewport_queue_screen_capture(viewport);
+	VS::get_singleton()->viewport_set_render_target_update_mode(viewport,VS::RENDER_TARGET_UPDATE_ONCE); //once used for capture
+//	print_line("queue capture!");
+	Image img;
+
+	int timeout=1000;
+	while(timeout) {
+		//print_line("try capture?");
+		OS::get_singleton()->delay_usec(10);
+		img = VS::get_singleton()->viewport_get_screen_capture(viewport);
+		if (!img.empty())
+			break;
+		timeout--;
+	}
+
+	//print_line("captured!");
+	VS::get_singleton()->instance_set_base(mesh_instance,RID());
+
+	int thumbnail_size = EditorSettings::get_singleton()->get("file_dialog/thumbnail_size");
+	img.resize(thumbnail_size,thumbnail_size);
+
+	Ref<ImageTexture> ptex = Ref<ImageTexture>( memnew( ImageTexture ));
+	ptex->create_from_image(img,0);
+	return ptex;
+}
+
+EditorMeshPreviewPlugin::EditorMeshPreviewPlugin() {
+
+	scenario = VS::get_singleton()->scenario_create();
+	viewport = VS::get_singleton()->viewport_create();
+	VS::get_singleton()->viewport_set_as_render_target(viewport,true);
+	VS::get_singleton()->viewport_set_render_target_update_mode(viewport,VS::RENDER_TARGET_UPDATE_DISABLED);
+	VS::get_singleton()->viewport_set_scenario(viewport,scenario);
+	VS::ViewportRect vr;
+	vr.x=0;
+	vr.y=0;
+	vr.width=128;
+	vr.height=128;
+	VS::get_singleton()->viewport_set_rect(viewport,vr);
+
+	camera = VS::get_singleton()->camera_create();
+	VS::get_singleton()->viewport_attach_camera(viewport,camera);
+	VS::get_singleton()->camera_set_transform(camera,Transform(Matrix3(),Vector3(0,0,3)));
+//	VS::get_singleton()->camera_set_perspective(camera,45,0.1,10);
+	VS::get_singleton()->camera_set_orthogonal(camera,1.0,0.01,1000.0);
+
+	light = VS::get_singleton()->light_create(VS::LIGHT_DIRECTIONAL);
+	light_instance = VS::get_singleton()->instance_create2(light,scenario);
+	VS::get_singleton()->instance_set_transform(light_instance,Transform().looking_at(Vector3(-1,-1,-1),Vector3(0,1,0)));
+
+	light2 = VS::get_singleton()->light_create(VS::LIGHT_DIRECTIONAL);
+	VS::get_singleton()->light_set_color(light2,VS::LIGHT_COLOR_DIFFUSE,Color(0.7,0.7,0.7));
+	VS::get_singleton()->light_set_color(light2,VS::LIGHT_COLOR_SPECULAR,Color(0.0,0.0,0.0));
+	light_instance2 = VS::get_singleton()->instance_create2(light2,scenario);
+
+	VS::get_singleton()->instance_set_transform(light_instance2,Transform().looking_at(Vector3(0,1,0),Vector3(0,0,1)));
+
+//	sphere = VS::get_singleton()->mesh_create();
+	mesh_instance = VS::get_singleton()->instance_create();
+	VS::get_singleton()->instance_set_scenario(mesh_instance,scenario);
+
+
+
+}
+
+EditorMeshPreviewPlugin::~EditorMeshPreviewPlugin() {
+
+	//VS::get_singleton()->free(sphere);
+	VS::get_singleton()->free(mesh_instance);
+	VS::get_singleton()->free(viewport);
+	VS::get_singleton()->free(light);
+	VS::get_singleton()->free(light_instance);
+	VS::get_singleton()->free(light2);
+	VS::get_singleton()->free(light_instance2);
+	VS::get_singleton()->free(camera);
+	VS::get_singleton()->free(scenario);
+
+}

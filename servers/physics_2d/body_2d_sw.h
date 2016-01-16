@@ -5,7 +5,7 @@
 /*                           GODOT ENGINE                                */
 /*                    http://www.godotengine.org                         */
 /*************************************************************************/
-/* Copyright (c) 2007-2015 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2007-2016 Juan Linietsky, Ariel Manzur.                 */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -81,6 +81,7 @@ class Body2DSW : public CollisionObject2DSW {
 	bool active;
 	bool can_sleep;
 	bool first_time_kinematic;
+	bool first_integration;
 	bool using_one_way_cache;
 	void _update_inertia();
 	virtual void _shapes_changed();
@@ -132,7 +133,7 @@ class Body2DSW : public CollisionObject2DSW {
 	Body2DSW *island_next;
 	Body2DSW *island_list_next;
 
-	_FORCE_INLINE_ void _compute_area_gravity(const Area2DSW *p_area);
+	_FORCE_INLINE_ void _compute_area_gravity_and_dampenings(const Area2DSW *p_area);
 
 friend class Physics2DDirectBodyStateSW; // i give up, too many functions to expose
 
@@ -337,9 +338,9 @@ public:
 	Body2DSW *body;
 	real_t step;
 
-	virtual Vector2 get_total_gravity() const {  return body->get_gravity();  } // get gravity vector working on this body space/area
-	virtual float get_total_angular_damp() const {  return body->get_angular_damp();  } // get density of this body space/area
-	virtual float get_total_linear_damp() const {  return body->get_linear_damp();  } // get density of this body space/area
+	virtual Vector2 get_total_gravity() const {  return body->gravity;  } // get gravity vector working on this body space/area
+	virtual float get_total_angular_damp() const {  return body->area_angular_damp;  } // get density of this body space/area
+	virtual float get_total_linear_damp() const {  return body->area_linear_damp;  } // get density of this body space/area
 
 	virtual float get_inverse_mass() const {  return body->get_inv_mass();  } // get the mass
 	virtual real_t get_inverse_inertia() const { return body->get_inv_inertia();   } // get density of this body space
@@ -369,7 +370,7 @@ public:
 	virtual Vector2 get_contact_collider_pos(int p_contact_idx) const {  ERR_FAIL_INDEX_V(p_contact_idx,body->contact_count,Vector2());   return body->contacts[p_contact_idx].collider_pos;  }
 	virtual ObjectID get_contact_collider_id(int p_contact_idx) const {  ERR_FAIL_INDEX_V(p_contact_idx,body->contact_count,0);   return body->contacts[p_contact_idx].collider_instance_id;   }
 	virtual int get_contact_collider_shape(int p_contact_idx) const {  ERR_FAIL_INDEX_V(p_contact_idx,body->contact_count,0); return body->contacts[p_contact_idx].collider_shape;  }
-	virtual Variant get_contact_collider_shape_metadata(int p_contact_idx) const {  ERR_FAIL_INDEX_V(p_contact_idx,body->contact_count,Variant()); return body->get_shape_metadata(body->contacts[p_contact_idx].collider_shape);  }
+	virtual Variant get_contact_collider_shape_metadata(int p_contact_idx) const;
 
 	virtual Vector2 get_contact_collider_velocity_at_pos(int p_contact_idx) const {  ERR_FAIL_INDEX_V(p_contact_idx,body->contact_count,Vector2()); return body->contacts[p_contact_idx].collider_velocity_at_pos;  }
 
